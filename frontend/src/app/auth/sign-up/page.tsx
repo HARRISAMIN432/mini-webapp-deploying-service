@@ -11,6 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 import { signUpSchema, type SignUpFormValues } from "@/lib/validations/auth";
 import { AuthFormState } from "@/lib/types/auth";
+import { apiRequest, ApiError } from "@/lib/api";
 import { usePasswordToggle } from "@/lib/hooks/usePasswordToggle";
 
 import { OAuthButtons } from "@/components/auth/OAuthButtons";
@@ -42,25 +43,25 @@ export default function SignUpPage() {
   const onSubmit = async (values: SignUpFormValues) => {
     try {
       setFormState({ status: "loading" });
-
-      // TODO: replace with your API call
-      // const res = await fetch("/api/auth/register", {
-      //   method: "POST",
-      //   headers: { "Content-Type": "application/json" },
-      //   body: JSON.stringify(values),
-      // });
-
-      await new Promise((r) => setTimeout(r, 1200)); // placeholder
-
+      await apiRequest("/api/auth/register", {
+        method: "POST",
+        body: JSON.stringify(values),
+      });
       setFormState({
         status: "success",
-        message: "Account created! Redirecting…",
+        message: "Check your email for a verification code.",
       });
-      router.push("/dashboard");
-    } catch {
+      router.push(
+        `/auth/verify-email?email=${encodeURIComponent(values.email)}`,
+      );
+    } catch (e) {
+      const msg =
+        e instanceof ApiError
+          ? e.message
+          : "Something went wrong. Please try again.";
       setFormState({
         status: "error",
-        message: "Something went wrong. Please try again.",
+        message: msg,
       });
     }
   };

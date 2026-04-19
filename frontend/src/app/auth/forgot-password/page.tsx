@@ -12,6 +12,7 @@ import {
   type ForgotPasswordFormValues,
 } from "@/lib/validations/auth";
 import { AuthFormState } from "@/lib/types/auth";
+import { apiRequest, ApiError } from "@/lib/api";
 import { AuthInputField } from "@/components/auth/AuthInputField";
 
 export default function ForgotPasswordPage() {
@@ -26,24 +27,22 @@ export default function ForgotPasswordPage() {
   const onSubmit = async (values: ForgotPasswordFormValues) => {
     try {
       setFormState({ status: "loading" });
-
-      // TODO: replace with your API call
-      // await fetch("/api/auth/forgot-password", {
-      //   method: "POST",
-      //   headers: { "Content-Type": "application/json" },
-      //   body: JSON.stringify(values),
-      // });
-
-      await new Promise((r) => setTimeout(r, 1200)); // placeholder
-
+      await apiRequest<null>("/api/auth/forgot-password", {
+        method: "POST",
+        body: JSON.stringify(values),
+      });
       setFormState({
         status: "success",
-        message: `We've sent a reset link to ${values.email}. Check your inbox.`,
+        message: `If this email is registered, we've sent a 6-digit reset code to ${values.email}.`,
       });
-    } catch {
+    } catch (e) {
+      const msg =
+        e instanceof ApiError
+          ? e.message
+          : "Something went wrong. Please try again.";
       setFormState({
         status: "error",
-        message: "Something went wrong. Please try again.",
+        message: msg,
       });
     }
   };
@@ -80,6 +79,12 @@ export default function ForgotPasswordPage() {
         </div>
 
         <div className="space-y-3 pt-2">
+          <Link
+            href={`/auth/reset-password?email=${encodeURIComponent(form.getValues("email"))}`}
+            className="flex items-center justify-center w-full h-11 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-xl text-sm transition-colors"
+          >
+            Enter code &amp; new password
+          </Link>
           <Button
             onClick={() => {
               form.reset();
@@ -142,7 +147,7 @@ export default function ForgotPasswordPage() {
           Reset your password
         </h1>
         <p className="text-gray-500 text-sm">
-          Enter your email and we&apos;ll send a secure reset link.
+          Enter your email and we&apos;ll send a 6-digit reset code.
         </p>
       </div>
 
@@ -208,7 +213,7 @@ export default function ForgotPasswordPage() {
               Sending…
             </span>
           ) : (
-            "Send reset link"
+            "Send reset code"
           )}
         </Button>
       </form>

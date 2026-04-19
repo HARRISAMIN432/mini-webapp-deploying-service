@@ -18,6 +18,8 @@ interface AuthInputFieldProps<T extends FieldValues> {
   placeholder?: string;
   type?: React.HTMLInputTypeAttribute;
   autoComplete?: string;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
+  maxLength?: number;
   rightElement?: React.ReactNode;
   className?: string;
   inputClassName?: string;
@@ -31,6 +33,8 @@ export function AuthInputField<T extends FieldValues>({
   placeholder,
   type = "text",
   autoComplete,
+  inputMode,
+  maxLength,
   rightElement,
   className,
   inputClassName,
@@ -56,6 +60,8 @@ export function AuthInputField<T extends FieldValues>({
                 type={type}
                 placeholder={placeholder}
                 autoComplete={autoComplete}
+                inputMode={inputMode}
+                maxLength={maxLength}
                 aria-invalid={fieldState.invalid}
                 className={cn(
                   "h-11 bg-white/5 border-white/10 text-white placeholder:text-gray-600",
@@ -78,6 +84,8 @@ export function AuthInputField<T extends FieldValues>({
               type={type}
               placeholder={placeholder}
               autoComplete={autoComplete}
+              inputMode={inputMode}
+              maxLength={maxLength}
               aria-invalid={fieldState.invalid}
               className={cn(
                 "h-11 bg-white/5 border-white/10 text-white placeholder:text-gray-600",

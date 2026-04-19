@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { OAUTH_PROVIDERS } from "@/config/oauth-providers";
 import { OAuthProvider } from "@/lib/types/auth";
+import { getOAuthStartUrl } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 interface OAuthButtonsProps {
@@ -15,15 +16,9 @@ export function OAuthButtons({ mode, className }: OAuthButtonsProps) {
     null,
   );
 
-  const handleOAuth = async (providerId: OAuthProvider) => {
-    try {
-      setLoadingProvider(providerId);
-      // Wire to your backend OAuth initiation endpoint:
-      // window.location.href = `/api/auth/${providerId}`;
-      await new Promise((r) => setTimeout(r, 1000)); // placeholder
-    } finally {
-      setLoadingProvider(null);
-    }
+  const handleOAuth = (providerId: OAuthProvider) => {
+    setLoadingProvider(providerId);
+    window.location.href = getOAuthStartUrl(providerId);
   };
 
   return (

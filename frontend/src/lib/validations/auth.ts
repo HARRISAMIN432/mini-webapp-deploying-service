@@ -16,6 +16,11 @@ const passwordSchema = z
   .regex(/[0-9]/, "Must contain at least one number")
   .regex(/[^A-Za-z0-9]/, "Must contain at least one special character");
 
+const otpSchema = z
+  .string()
+  .length(6, "Code must be 6 digits")
+  .regex(/^\d{6}$/, "Digits only");
+
 const nameSchema = z
   .string()
   .min(2, "Name must be at least 2 characters")
@@ -49,8 +54,15 @@ export const forgotPasswordSchema = z.object({
   email: emailSchema,
 });
 
+export const verifyEmailFormSchema = z.object({
+  email: emailSchema,
+  otp: otpSchema,
+});
+
 export const resetPasswordSchema = z
   .object({
+    email: emailSchema,
+    otp: otpSchema,
     password: passwordSchema,
     confirmPassword: z.string().min(1, "Please confirm your password"),
   })
@@ -59,9 +71,22 @@ export const resetPasswordSchema = z
     path: ["confirmPassword"],
   });
 
+export const totpLoginSchema = z.object({
+  email: emailSchema,
+  token: otpSchema,
+});
+
+export const emailOtpLoginSchema = z.object({
+  email: emailSchema,
+  otp: otpSchema,
+});
+
 export type LoginFormValues = z.infer<typeof loginSchema> & {
   rememberMe: boolean;
 };
 export type SignUpFormValues = z.infer<typeof signUpSchema>;
 export type ForgotPasswordFormValues = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordFormValues = z.infer<typeof resetPasswordSchema>;
+export type VerifyEmailFormValues = z.infer<typeof verifyEmailFormSchema>;
+export type TotpLoginFormValues = z.infer<typeof totpLoginSchema>;
+export type EmailOtpLoginFormValues = z.infer<typeof emailOtpLoginSchema>;

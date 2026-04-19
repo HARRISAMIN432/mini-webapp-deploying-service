@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { Zap, Ship, Globe, BarChart3 } from "lucide-react";
 import Link from "next/link";
 
@@ -178,7 +179,15 @@ export default function AuthLayout({
 
         {/* Form area */}
         <div className="flex-1 flex items-center justify-center p-6 sm:p-10">
-          <div className="w-full max-w-[420px]">{children}</div>
+          <div className="w-full max-w-[420px]">
+            <Suspense
+              fallback={
+                <p className="text-center text-gray-500 text-sm">Loading…</p>
+              }
+            >
+              {children}
+            </Suspense>
+          </div>
         </div>
 
         {/* Footer */}

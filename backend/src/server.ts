@@ -1,0 +1,52 @@
+import dotenv from "dotenv";
+dotenv.config({ quiet: true });
+import "express-async-errors";
+import express from "express";
+import cors from "cors";
+import helmet from "helmet";
+import cookieParser from "cookie-parser";
+import "./types";
+import { env } from "./config/env";
+import { connectDB } from "./config/database";
+import { connectRedis } from "./config/redis";
+import { logger } from "./utils/logger";
+import { errorHandler } from "./middleware/error-handler";
+import { apiLimiter } from "./middleware/rate-limit";
+import authRoutes from "./routes/auth.route";
+
+const app = express();
+
+app.set("trust proxy", 1);
+
+app.use(helmet());
+app.use(
+  cors({
+    origin: env.FRONTEND_URL,
+    credentials: true,
+  }),
+);
+app.use(cookieParser());
+app.use(express.json({ limit: "1mb" }));
+
+app.get("/health", (_req, res) => {
+  res.status(200).json({ ok: true });
+});
+
+app.use("/api", apiLimiter);
+app.use("/api/auth", authRoutes);
+
+app.use(errorHandler);
+
+const start = async (): Promise<void> => {
+  await connectRedis();
+  await connectDB();
+
+  app.listen(env.PORT, () => {
+    logger.info(`API listening on port ${env.PORT}`);
+  });
+};
+
+start().catch((err) => {
+  logger.error("Failed to start server", { error: String(err) });
+  process.exit(1);
+});
