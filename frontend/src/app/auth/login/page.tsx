@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { AlertCircle, Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -31,6 +32,71 @@ type OtpStep =
   | { kind: "totp"; email: string }
   | { kind: "emailOtp"; email: string };
 
+/* ── Shared error banner ── */
+function ErrorBanner({ message }: { message: string }) {
+  return (
+    <div
+      className="flex items-start gap-3 p-3.5 rounded-xl text-sm"
+      style={{
+        background: "rgba(239,68,68,0.08)",
+        border: "1px solid rgba(239,68,68,0.2)",
+        fontFamily: "'DM Sans', sans-serif",
+      }}
+    >
+      <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+      <p className="text-red-400">{message}</p>
+    </div>
+  );
+}
+
+/* ── Shared submit button ── */
+function SubmitButton({
+  loading,
+  label,
+  loadingLabel,
+}: {
+  loading: boolean;
+  label: string;
+  loadingLabel: string;
+}) {
+  return (
+    <button
+      type="submit"
+      disabled={loading}
+      className="group relative w-full h-11 rounded-xl text-sm font-semibold text-white overflow-hidden transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+      style={{
+        background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+        boxShadow: loading
+          ? "none"
+          : "0 0 0 1px rgba(99,102,241,0.5), 0 4px 24px rgba(99,102,241,0.25)",
+        fontFamily: "'DM Sans', sans-serif",
+      }}
+    >
+      {/* shimmer */}
+      <div
+        className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+        style={{
+          background:
+            "linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.1) 50%, transparent 70%)",
+        }}
+      />
+      <span className="relative flex items-center justify-center gap-2">
+        {loading ? (
+          <>
+            <Loader2 className="w-4 h-4 animate-spin" />
+            {loadingLabel}
+          </>
+        ) : (
+          <>
+            {label}
+            <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform duration-150" />
+          </>
+        )}
+      </span>
+    </button>
+  );
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const { showPassword, toggle, inputType } = usePasswordToggle();
@@ -39,11 +105,7 @@ export default function LoginPage() {
 
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema) as never,
-    defaultValues: {
-      email: "",
-      password: "",
-      rememberMe: false,
-    },
+    defaultValues: { email: "", password: "", rememberMe: false },
     mode: "onBlur",
   });
 
@@ -58,15 +120,13 @@ export default function LoginPage() {
   });
 
   useEffect(() => {
-    if (otpStep.kind === "totp") {
+    if (otpStep.kind === "totp")
       totpForm.reset({ email: otpStep.email, token: "" });
-    }
   }, [otpStep, totpForm]);
 
   useEffect(() => {
-    if (otpStep.kind === "emailOtp") {
+    if (otpStep.kind === "emailOtp")
       emailOtpForm.reset({ email: otpStep.email, otp: "" });
-    }
   }, [otpStep, emailOtpForm]);
 
   const onSubmit = async (values: LoginFormData) => {
@@ -76,23 +136,21 @@ export default function LoginPage() {
         method: "POST",
         body: JSON.stringify(values),
       });
-
       if ("requiresOtp" in data && data.requiresOtp) {
         setFormState({ status: "idle" });
-        if (data.otpMethod === "totp") {
+        if (data.otpMethod === "totp")
           setOtpStep({ kind: "totp", email: data.user.email });
-        } else {
-          setOtpStep({ kind: "emailOtp", email: data.user.email });
-        }
+        else setOtpStep({ kind: "emailOtp", email: data.user.email });
         return;
       }
-
       setFormState({ status: "success", message: "Logged in successfully!" });
       router.push("/dashboard");
     } catch (e) {
       const err = e instanceof ApiError ? e : null;
-      const msg = err?.message ?? "Invalid email or password. Please try again.";
-      setFormState({ status: "error", message: msg });
+      setFormState({
+        status: "error",
+        message: err?.message ?? "Invalid email or password. Please try again.",
+      });
     }
   };
 
@@ -101,17 +159,16 @@ export default function LoginPage() {
       setFormState({ status: "loading" });
       await apiRequest("/api/auth/login/totp", {
         method: "POST",
-        body: JSON.stringify({
-          email: values.email,
-          token: values.token,
-        }),
+        body: JSON.stringify({ email: values.email, token: values.token }),
       });
       setFormState({ status: "success", message: "Logged in successfully!" });
       router.push("/dashboard");
     } catch (e) {
-      const msg =
-        e instanceof ApiError ? e.message : "Invalid code. Please try again.";
-      setFormState({ status: "error", message: msg });
+      setFormState({
+        status: "error",
+        message:
+          e instanceof ApiError ? e.message : "Invalid code. Please try again.",
+      });
     }
   };
 
@@ -120,42 +177,64 @@ export default function LoginPage() {
       setFormState({ status: "loading" });
       await apiRequest("/api/auth/login/email-otp", {
         method: "POST",
-        body: JSON.stringify({
-          email: values.email,
-          otp: values.otp,
-        }),
+        body: JSON.stringify({ email: values.email, otp: values.otp }),
       });
       setFormState({ status: "success", message: "Logged in successfully!" });
       router.push("/dashboard");
     } catch (e) {
-      const msg =
-        e instanceof ApiError ? e.message : "Invalid code. Please try again.";
-      setFormState({ status: "error", message: msg });
+      setFormState({
+        status: "error",
+        message:
+          e instanceof ApiError ? e.message : "Invalid code. Please try again.",
+      });
     }
   };
 
   const isLoading = formState.status === "loading";
 
+  /* ── OTP: TOTP ── */
   if (otpStep.kind === "totp") {
     return (
-      <div className="space-y-6">
-        <div className="space-y-1">
-          <h1
-            className="text-2xl font-bold text-white tracking-tight"
-            style={{ fontFamily: "'Sora', sans-serif" }}
+      <div className="space-y-7">
+        <div>
+          <div
+            className="inline-flex items-center justify-center w-11 h-11 rounded-2xl mb-5"
+            style={{
+              background: "rgba(99,102,241,0.12)",
+              border: "1px solid rgba(99,102,241,0.25)",
+            }}
           >
-            Authenticator code
+            <svg
+              className="w-5 h-5 text-indigo-400"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <rect x="5" y="11" width="14" height="10" rx="2" />
+              <path d="M8 11V7a4 4 0 018 0v4" />
+            </svg>
+          </div>
+          <h1
+            className="text-2xl font-bold text-white tracking-tight mb-1"
+            style={{
+              fontFamily: "'Sora', sans-serif",
+              letterSpacing: "-0.02em",
+            }}
+          >
+            Two-factor auth
           </h1>
-          <p className="text-gray-500 text-sm">
-            Enter the 6-digit code from your app for{" "}
-            <span className="text-gray-400">{otpStep.email}</span>
+          <p
+            className="text-[#6b7280] text-sm"
+            style={{ fontFamily: "'DM Sans', sans-serif" }}
+          >
+            Enter the 6-digit code from your authenticator app for{" "}
+            <span className="text-[#9ca3af]">{otpStep.email}</span>
           </p>
         </div>
 
         {formState.status === "error" && (
-          <div className="flex items-start gap-3 p-3.5 rounded-xl bg-red-500/10 border border-red-500/20">
-            <p className="text-red-400 text-sm">{formState.message}</p>
-          </div>
+          <ErrorBanner message={formState.message} />
         )}
 
         <form
@@ -168,53 +247,85 @@ export default function LoginPage() {
             control={totpForm.control}
             name="token"
             label="6-digit code"
-            placeholder="000000"
+            placeholder="000 000"
             inputMode="numeric"
             maxLength={6}
             autoComplete="one-time-code"
           />
-          <Button
-            type="submit"
-            disabled={isLoading}
-            className="w-full h-11 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-xl"
-          >
-            {isLoading ? "Verifying…" : "Continue"}
-          </Button>
+          <SubmitButton
+            loading={isLoading}
+            label="Verify & sign in"
+            loadingLabel="Verifying…"
+          />
         </form>
+
         <button
           type="button"
           onClick={() => {
             setOtpStep({ kind: "none" });
             setFormState({ status: "idle" });
           }}
-          className="w-full text-sm text-gray-500 hover:text-gray-400"
+          className="flex items-center gap-1.5 text-sm text-[#4b5563] hover:text-[#9ca3af] transition-colors"
+          style={{ fontFamily: "'DM Sans', sans-serif" }}
         >
-          ← Back to password
+          <svg
+            className="w-3.5 h-3.5"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path d="M19 12H5M12 5l-7 7 7 7" />
+          </svg>
+          Back to password
         </button>
       </div>
     );
   }
 
+  /* ── OTP: Email ── */
   if (otpStep.kind === "emailOtp") {
     return (
-      <div className="space-y-6">
-        <div className="space-y-1">
-          <h1
-            className="text-2xl font-bold text-white tracking-tight"
-            style={{ fontFamily: "'Sora', sans-serif" }}
+      <div className="space-y-7">
+        <div>
+          <div
+            className="inline-flex items-center justify-center w-11 h-11 rounded-2xl mb-5"
+            style={{
+              background: "rgba(99,102,241,0.12)",
+              border: "1px solid rgba(99,102,241,0.25)",
+            }}
           >
-            Email code
+            <svg
+              className="w-5 h-5 text-indigo-400"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+            >
+              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+              <polyline points="22,6 12,13 2,6" />
+            </svg>
+          </div>
+          <h1
+            className="text-2xl font-bold text-white tracking-tight mb-1"
+            style={{
+              fontFamily: "'Sora', sans-serif",
+              letterSpacing: "-0.02em",
+            }}
+          >
+            Check your email
           </h1>
-          <p className="text-gray-500 text-sm">
-            Enter the code sent to{" "}
-            <span className="text-gray-400">{otpStep.email}</span>
+          <p
+            className="text-[#6b7280] text-sm"
+            style={{ fontFamily: "'DM Sans', sans-serif" }}
+          >
+            We sent a code to{" "}
+            <span className="text-[#9ca3af]">{otpStep.email}</span>
           </p>
         </div>
 
         {formState.status === "error" && (
-          <div className="flex items-start gap-3 p-3.5 rounded-xl bg-red-500/10 border border-red-500/20">
-            <p className="text-red-400 text-sm">{formState.message}</p>
-          </div>
+          <ErrorBanner message={formState.message} />
         )}
 
         <form
@@ -227,62 +338,85 @@ export default function LoginPage() {
             control={emailOtpForm.control}
             name="otp"
             label="6-digit code"
-            placeholder="000000"
+            placeholder="000 000"
             inputMode="numeric"
             maxLength={6}
             autoComplete="one-time-code"
           />
-          <Button
-            type="submit"
-            disabled={isLoading}
-            className="w-full h-11 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-xl"
-          >
-            {isLoading ? "Verifying…" : "Continue"}
-          </Button>
+          <SubmitButton
+            loading={isLoading}
+            label="Verify & sign in"
+            loadingLabel="Verifying…"
+          />
         </form>
+
         <button
           type="button"
           onClick={() => {
             setOtpStep({ kind: "none" });
             setFormState({ status: "idle" });
           }}
-          className="w-full text-sm text-gray-500 hover:text-gray-400"
+          className="flex items-center gap-1.5 text-sm text-[#4b5563] hover:text-[#9ca3af] transition-colors"
+          style={{ fontFamily: "'DM Sans', sans-serif" }}
         >
-          ← Back to password
+          <svg
+            className="w-3.5 h-3.5"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path d="M19 12H5M12 5l-7 7 7 7" />
+          </svg>
+          Back to password
         </button>
       </div>
     );
   }
 
+  /* ── Main login form ── */
   return (
-    <div className="space-y-6">
-      <div className="space-y-1">
+    <div className="space-y-7">
+      {/* Header */}
+      <div>
         <h1
-          className="text-2xl font-bold text-white tracking-tight"
-          style={{ fontFamily: "'Sora', sans-serif" }}
+          className="text-2xl font-bold text-white tracking-tight mb-1"
+          style={{ fontFamily: "'Sora', sans-serif", letterSpacing: "-0.02em" }}
         >
           Welcome back
         </h1>
-        <p className="text-gray-500 text-sm">
+        <p
+          className="text-[#6b7280] text-sm"
+          style={{ fontFamily: "'DM Sans', sans-serif" }}
+        >
           Sign in to your ShipStack workspace
         </p>
       </div>
 
       <OAuthButtons mode="login" />
 
-      <AuthDivider label="or continue with email" />
+      {/* Divider */}
+      <div className="flex items-center gap-3">
+        <div className="flex-1 h-px bg-white/[0.06]" />
+        <span
+          className="text-[#374151] text-xs uppercase tracking-widest"
+          style={{ fontFamily: "'DM Sans', sans-serif" }}
+        >
+          or
+        </span>
+        <div className="flex-1 h-px bg-white/[0.06]" />
+      </div>
 
       {formState.status === "error" && (
         <div className="space-y-2">
-          <div className="flex items-start gap-3 p-3.5 rounded-xl bg-red-500/10 border border-red-500/20">
-            <p className="text-red-400 text-sm">{formState.message}</p>
-          </div>
+          <ErrorBanner message={formState.message} />
           {formState.message.toLowerCase().includes("verify") && (
             <Link
               href={`/auth/verify-email?email=${encodeURIComponent(form.watch("email"))}`}
-              className="block text-center text-sm text-blue-400 hover:text-blue-300"
+              className="block text-center text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+              style={{ fontFamily: "'DM Sans', sans-serif" }}
             >
-              Open email verification
+              Open email verification →
             </Link>
           )}
         </div>
@@ -306,72 +440,52 @@ export default function LoginPage() {
           control={form.control}
           name="password"
           label="Password"
-          placeholder="••••••••"
+          placeholder="Enter your password"
           type={inputType}
           autoComplete="current-password"
           rightElement={<EyeToggle show={showPassword} onToggle={toggle} />}
         />
 
-        <div className="flex items-center justify-between pt-0.5">
+        <div className="flex items-center justify-between">
           <label className="flex items-center gap-2 cursor-pointer">
             <Checkbox
               checked={form.watch("rememberMe")}
               onCheckedChange={(checked) =>
                 form.setValue("rememberMe", checked as boolean)
               }
-              className="border-white/20 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+              className="border-white/[0.15] data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600 rounded-md"
             />
-            <span className="text-gray-400 text-sm font-normal">
+            <span
+              className="text-[#6b7280] text-sm"
+              style={{ fontFamily: "'DM Sans', sans-serif" }}
+            >
               Remember me
             </span>
           </label>
           <Link
             href="/auth/forgot-password"
-            className="text-sm text-blue-400 hover:text-blue-300 transition-colors"
+            className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+            style={{ fontFamily: "'DM Sans', sans-serif" }}
           >
             Forgot password?
           </Link>
         </div>
 
-        <Button
-          type="submit"
-          disabled={isLoading}
-          className="w-full h-11 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-xl transition-all shadow-lg shadow-blue-600/20 hover:shadow-blue-600/30 disabled:opacity-60 disabled:cursor-not-allowed"
-        >
-          {isLoading ? (
-            <span className="flex items-center gap-2">
-              <svg
-                className="w-4 h-4 animate-spin"
-                viewBox="0 0 24 24"
-                fill="none"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                />
-              </svg>
-              Signing in…
-            </span>
-          ) : (
-            "Sign in"
-          )}
-        </Button>
+        <SubmitButton
+          loading={isLoading}
+          label="Sign in"
+          loadingLabel="Signing in…"
+        />
       </form>
 
-      <p className="text-center text-sm text-gray-500">
+      <p
+        className="text-center text-sm text-[#4b5563]"
+        style={{ fontFamily: "'DM Sans', sans-serif" }}
+      >
         Don&apos;t have an account?{" "}
         <Link
           href="/auth/sign-up"
-          className="text-blue-400 hover:text-blue-300 font-medium transition-colors"
+          className="text-indigo-400 hover:text-indigo-300 font-medium transition-colors"
         >
           Create one free
         </Link>

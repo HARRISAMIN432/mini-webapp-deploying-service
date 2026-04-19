@@ -15,10 +15,7 @@ import {
   generateTotpQrCode,
   verifyTotpToken,
 } from "./otp.service";
-import {
-  sendVerificationEmail,
-  sendPasswordResetEmail,
-} from "./email.service";
+import { sendVerificationEmail, sendPasswordResetEmail } from "./email.service";
 import {
   buildGoogleAuthUrl,
   buildGithubAuthUrl,
@@ -117,12 +114,6 @@ export const login = async (
   if (user.totpEnabled) {
     return { requiresOtp: true, otpMethod: "totp", user: user.toPublic() };
   }
-
-  // ── Email OTP check (optional per-login OTP) ──────────────────────────────
-  // Uncomment to enforce OTP on every login:
-  // const otp = await generateEmailOtp(user.email, "login-otp");
-  // await sendLoginOtpEmail(user.email, user.name, otp);
-  // return { requiresOtp: true, otpMethod: "email", user: user.toPublic() };
 
   const tokens = await issueTokenPair(
     user._id.toString(),

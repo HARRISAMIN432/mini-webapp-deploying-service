@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Loader2 } from "lucide-react";
 import { OAUTH_PROVIDERS } from "@/config/oauth-providers";
 import { OAuthProvider } from "@/lib/types/auth";
 import { getOAuthStartUrl } from "@/lib/api";
@@ -22,44 +23,39 @@ export function OAuthButtons({ mode, className }: OAuthButtonsProps) {
   };
 
   return (
-    <div className={cn("flex flex-col gap-2.5", className)}>
+    <div className={cn("flex flex-col gap-2", className)}>
       {OAUTH_PROVIDERS.map((provider) => {
         const isLoading = loadingProvider === provider.id;
+        const isDisabled = !!loadingProvider;
 
         return (
           <button
             key={provider.id}
             type="button"
-            disabled={!!loadingProvider}
+            disabled={isDisabled}
             onClick={() => handleOAuth(provider.id)}
             className={cn(
-              "relative flex items-center justify-center gap-3 w-full h-11 rounded-xl border text-sm font-medium transition-all duration-150",
-              "disabled:opacity-60 disabled:cursor-not-allowed",
-              provider.bgClass,
-              provider.textClass,
-              provider.borderClass,
+              "group relative flex items-center justify-center gap-2.5 w-full h-11 rounded-xl text-sm font-medium",
+              "transition-all duration-200 outline-none",
+              "bg-[#0d0f14] border border-white/[0.08]",
+              "hover:border-white/[0.18] hover:bg-[#111318]",
+              "focus-visible:border-indigo-500/50 focus-visible:ring-2 focus-visible:ring-indigo-500/20",
+              "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:border-white/[0.08] disabled:hover:bg-[#0d0f14]",
+              "text-[#d1d5db]",
             )}
+            style={{ fontFamily: "'DM Sans', sans-serif" }}
           >
+            {/* Subtle hover shimmer */}
+            <div
+              className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
+              style={{
+                background:
+                  "linear-gradient(105deg, rgba(255,255,255,0.03) 0%, transparent 60%)",
+              }}
+            />
+
             {isLoading ? (
-              <svg
-                className="w-4 h-4 animate-spin"
-                viewBox="0 0 24 24"
-                fill="none"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                />
-              </svg>
+              <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />
             ) : (
               <svg
                 viewBox={provider.viewBox}
@@ -69,7 +65,7 @@ export function OAuthButtons({ mode, className }: OAuthButtonsProps) {
                 <path d={provider.iconPath} />
               </svg>
             )}
-            <span>
+            <span className="relative">
               {mode === "login" ? "Continue" : "Sign up"} with {provider.label}
             </span>
           </button>

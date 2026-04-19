@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { AlertCircle, ArrowRight, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -55,13 +56,12 @@ export default function SignUpPage() {
         `/auth/verify-email?email=${encodeURIComponent(values.email)}`,
       );
     } catch (e) {
-      const msg =
-        e instanceof ApiError
-          ? e.message
-          : "Something went wrong. Please try again.";
       setFormState({
         status: "error",
-        message: msg,
+        message:
+          e instanceof ApiError
+            ? e.message
+            : "Something went wrong. Please try again.",
       });
     }
   };
@@ -69,40 +69,49 @@ export default function SignUpPage() {
   const isLoading = formState.status === "loading";
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="space-y-1">
+      <div>
         <h1
-          className="text-2xl font-bold text-white tracking-tight"
-          style={{ fontFamily: "'Sora', sans-serif" }}
+          className="text-2xl font-bold text-white tracking-tight mb-1"
+          style={{ fontFamily: "'Sora', sans-serif", letterSpacing: "-0.02em" }}
         >
           Create your account
         </h1>
-        <p className="text-gray-500 text-sm">
-          Start deploying in under 2 minutes
+        <p
+          className="text-[#6b7280] text-sm"
+          style={{ fontFamily: "'DM Sans', sans-serif" }}
+        >
+          Start deploying in under 2 minutes — no credit card required
         </p>
       </div>
 
-      {/* OAuth */}
       <OAuthButtons mode="signup" />
 
-      <AuthDivider label="or sign up with email" />
+      {/* Divider */}
+      <div className="flex items-center gap-3">
+        <div className="flex-1 h-px bg-white/[0.06]" />
+        <span
+          className="text-[#374151] text-xs uppercase tracking-widest"
+          style={{ fontFamily: "'DM Sans', sans-serif" }}
+        >
+          or
+        </span>
+        <div className="flex-1 h-px bg-white/[0.06]" />
+      </div>
 
       {/* Error banner */}
       {formState.status === "error" && (
-        <div className="flex items-start gap-3 p-3.5 rounded-xl bg-red-500/10 border border-red-500/20">
-          <svg
-            className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="8" x2="12" y2="12" />
-            <line x1="12" y1="16" x2="12.01" y2="16" />
-          </svg>
-          <p className="text-red-400 text-sm">{formState.message}</p>
+        <div
+          className="flex items-start gap-3 p-3.5 rounded-xl text-sm"
+          style={{
+            background: "rgba(239,68,68,0.08)",
+            border: "1px solid rgba(239,68,68,0.2)",
+            fontFamily: "'DM Sans', sans-serif",
+          }}
+        >
+          <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+          <p className="text-red-400">{formState.message}</p>
         </div>
       )}
 
@@ -163,7 +172,7 @@ export default function SignUpPage() {
         />
 
         {/* Terms checkbox */}
-        <div className="flex items-start gap-3 pt-1">
+        <div className="flex items-start gap-3 pt-0.5">
           <Checkbox
             id="acceptTerms"
             checked={form.watch("acceptTerms")}
@@ -172,76 +181,83 @@ export default function SignUpPage() {
                 shouldValidate: true,
               })
             }
-            className="mt-0.5 border-white/20 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+            className="mt-0.5 border-white/[0.15] data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600 rounded-md"
           />
           <div className="flex-1">
             <label
               htmlFor="acceptTerms"
-              className="text-gray-400 text-sm font-normal leading-relaxed cursor-pointer"
+              className="text-[#6b7280] text-sm leading-relaxed cursor-pointer"
+              style={{ fontFamily: "'DM Sans', sans-serif" }}
             >
               I agree to the{" "}
               <Link
                 href="/terms"
-                className="text-blue-400 hover:text-blue-300 transition-colors"
+                className="text-indigo-400 hover:text-indigo-300 transition-colors"
               >
                 Terms of Service
               </Link>{" "}
               and{" "}
               <Link
                 href="/privacy"
-                className="text-blue-400 hover:text-blue-300 transition-colors"
+                className="text-indigo-400 hover:text-indigo-300 transition-colors"
               >
                 Privacy Policy
               </Link>
             </label>
             {form.formState.errors.acceptTerms && (
-              <p className="text-red-400 text-xs mt-1">
+              <p
+                className="text-red-400 text-xs mt-1"
+                style={{ fontFamily: "'DM Sans', sans-serif" }}
+              >
                 {form.formState.errors.acceptTerms.message}
               </p>
             )}
           </div>
         </div>
 
-        <Button
+        {/* Submit button */}
+        <button
           type="submit"
           disabled={isLoading}
-          className="w-full h-11 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-xl transition-all shadow-lg shadow-blue-600/20 hover:shadow-blue-600/30 disabled:opacity-60 disabled:cursor-not-allowed mt-1"
+          className="group relative w-full h-11 rounded-xl text-sm font-semibold text-white overflow-hidden transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+          style={{
+            background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+            boxShadow: isLoading
+              ? "none"
+              : "0 0 0 1px rgba(99,102,241,0.5), 0 4px 24px rgba(99,102,241,0.25)",
+            fontFamily: "'DM Sans', sans-serif",
+          }}
         >
-          {isLoading ? (
-            <span className="flex items-center gap-2">
-              <svg
-                className="w-4 h-4 animate-spin"
-                viewBox="0 0 24 24"
-                fill="none"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                />
-              </svg>
-              Creating account…
-            </span>
-          ) : (
-            "Create account"
-          )}
-        </Button>
+          <div
+            className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+            style={{
+              background:
+                "linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.1) 50%, transparent 70%)",
+            }}
+          />
+          <span className="relative flex items-center justify-center gap-2">
+            {isLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" /> Creating account…
+              </>
+            ) : (
+              <>
+                Create account{" "}
+                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform duration-150" />
+              </>
+            )}
+          </span>
+        </button>
       </form>
 
-      {/* Login link */}
-      <p className="text-center text-sm text-gray-500">
+      <p
+        className="text-center text-sm text-[#4b5563]"
+        style={{ fontFamily: "'DM Sans', sans-serif" }}
+      >
         Already have an account?{" "}
         <Link
           href="/auth/login"
-          className="text-blue-400 hover:text-blue-300 font-medium transition-colors"
+          className="text-indigo-400 hover:text-indigo-300 font-medium transition-colors"
         >
           Sign in
         </Link>

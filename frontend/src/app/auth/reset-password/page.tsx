@@ -5,16 +5,21 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  ShieldCheck,
+  AlertCircle,
+  CheckCircle2,
+  ArrowRight,
+  Loader2,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-
 import {
   resetPasswordSchema,
   type ResetPasswordFormValues,
 } from "@/lib/validations/auth";
 import { AuthFormState } from "@/lib/types/auth";
 import { usePasswordToggle } from "@/lib/hooks/usePasswordToggle";
-
 import { AuthInputField } from "@/components/auth/AuthInputField";
 import { EyeToggle } from "@/components/auth/EyeToggle";
 import { PasswordStrength } from "@/components/auth/PasswordStrength";
@@ -41,9 +46,7 @@ export default function ResetPasswordPage() {
   });
 
   useEffect(() => {
-    if (emailPrefill) {
-      form.setValue("email", emailPrefill);
-    }
+    if (emailPrefill) form.setValue("email", emailPrefill);
   }, [emailPrefill, form]);
 
   const watchedPassword = form.watch("password");
@@ -61,82 +64,104 @@ export default function ResetPasswordPage() {
       });
       setTimeout(() => router.push("/auth/login"), 2000);
     } catch (e) {
-      const msg =
-        e instanceof ApiError
-          ? e.message
-          : "Could not reset password. Try again or request a new code.";
       setFormState({
         status: "error",
-        message: msg,
+        message:
+          e instanceof ApiError
+            ? e.message
+            : "Could not reset password. Try again or request a new code.",
       });
     }
   };
 
   const isLoading = formState.status === "loading";
 
+  /* ── Success ── */
   if (formState.status === "success") {
     return (
-      <div className="space-y-6 text-center">
-        <div className="mx-auto w-14 h-14 rounded-2xl bg-green-500/15 border border-green-500/25 flex items-center justify-center">
-          <svg
-            className="w-7 h-7 text-green-400"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={2}
+      <div className="space-y-7 text-center">
+        <div className="flex flex-col items-center">
+          <div
+            className="w-16 h-16 rounded-3xl flex items-center justify-center mb-5"
+            style={{
+              background: "rgba(34,197,94,0.1)",
+              border: "1px solid rgba(34,197,94,0.2)",
+              boxShadow: "0 0 40px rgba(34,197,94,0.1)",
+            }}
           >
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
-        </div>
-        <div>
+            <CheckCircle2 className="w-8 h-8 text-green-400" />
+          </div>
           <h2
-            className="text-xl font-bold text-white mb-2"
-            style={{ fontFamily: "'Sora', sans-serif" }}
+            className="text-2xl font-bold text-white tracking-tight mb-2"
+            style={{
+              fontFamily: "'Sora', sans-serif",
+              letterSpacing: "-0.02em",
+            }}
           >
             Password updated
           </h2>
-          <p className="text-gray-400 text-sm">
+          <p
+            className="text-[#6b7280] text-sm"
+            style={{ fontFamily: "'DM Sans', sans-serif" }}
+          >
             You&apos;ll be redirected to sign in shortly…
           </p>
         </div>
+
         <Link
           href="/auth/login"
-          className="inline-flex items-center justify-center w-full h-11 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-xl transition-all text-sm"
+          className="group relative flex items-center justify-center gap-2 w-full h-11 rounded-xl text-sm font-semibold text-white overflow-hidden transition-all duration-200"
+          style={{
+            background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+            boxShadow:
+              "0 0 0 1px rgba(99,102,241,0.5), 0 4px 24px rgba(99,102,241,0.25)",
+            fontFamily: "'DM Sans', sans-serif",
+          }}
         >
-          Sign in now
+          Sign in now <ArrowRight className="w-3.5 h-3.5" />
         </Link>
       </div>
     );
   }
 
+  /* ── Form ── */
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
       <div>
-        <div className="w-12 h-12 rounded-xl bg-blue-600/15 border border-blue-500/20 flex items-center justify-center mb-4">
-          <svg
-            className="w-6 h-6 text-blue-400"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-          </svg>
+        <div
+          className="w-11 h-11 rounded-2xl flex items-center justify-center mb-5"
+          style={{
+            background: "rgba(99,102,241,0.12)",
+            border: "1px solid rgba(99,102,241,0.25)",
+          }}
+        >
+          <ShieldCheck className="w-5 h-5 text-indigo-400" />
         </div>
         <h1
           className="text-2xl font-bold text-white tracking-tight mb-1"
-          style={{ fontFamily: "'Sora', sans-serif" }}
+          style={{ fontFamily: "'Sora', sans-serif", letterSpacing: "-0.02em" }}
         >
           Set new password
         </h1>
-        <p className="text-gray-500 text-sm">
+        <p
+          className="text-[#6b7280] text-sm"
+          style={{ fontFamily: "'DM Sans', sans-serif" }}
+        >
           Enter the code from your email, then choose a new password.
         </p>
       </div>
 
       {formState.status === "error" && (
-        <div className="flex items-start gap-3 p-3.5 rounded-xl bg-red-500/10 border border-red-500/20">
-          <p className="text-red-400 text-sm">{formState.message}</p>
+        <div
+          className="flex items-start gap-3 p-3.5 rounded-xl text-sm"
+          style={{
+            background: "rgba(239,68,68,0.08)",
+            border: "1px solid rgba(239,68,68,0.2)",
+            fontFamily: "'DM Sans', sans-serif",
+          }}
+        >
+          <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+          <p className="text-red-400">{formState.message}</p>
         </div>
       )}
 
@@ -197,17 +222,48 @@ export default function ResetPasswordPage() {
           }
         />
 
-        <Button
+        <button
           type="submit"
           disabled={isLoading}
-          className="w-full h-11 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-xl transition-all shadow-lg shadow-blue-600/20 hover:shadow-blue-600/30 disabled:opacity-60 disabled:cursor-not-allowed"
+          className="group relative w-full h-11 rounded-xl text-sm font-semibold text-white overflow-hidden transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+          style={{
+            background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+            boxShadow: isLoading
+              ? "none"
+              : "0 0 0 1px rgba(99,102,241,0.5), 0 4px 24px rgba(99,102,241,0.25)",
+            fontFamily: "'DM Sans', sans-serif",
+          }}
         >
-          {isLoading ? "Updating password…" : "Update password"}
-        </Button>
+          <div
+            className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity"
+            style={{
+              background:
+                "linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.1) 50%, transparent 70%)",
+            }}
+          />
+          <span className="relative flex items-center justify-center gap-2">
+            {isLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" /> Updating password…
+              </>
+            ) : (
+              <>
+                Update password{" "}
+                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+              </>
+            )}
+          </span>
+        </button>
       </form>
 
-      <p className="text-center text-sm text-gray-500">
-        <Link href="/auth/forgot-password" className="text-blue-400 hover:text-blue-300">
+      <p
+        className="text-center text-sm text-[#4b5563]"
+        style={{ fontFamily: "'DM Sans', sans-serif" }}
+      >
+        <Link
+          href="/auth/forgot-password"
+          className="text-indigo-400 hover:text-indigo-300 transition-colors"
+        >
           Request a new code
         </Link>
       </p>

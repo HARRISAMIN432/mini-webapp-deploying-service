@@ -4,9 +4,16 @@ import { useState } from "react";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  ArrowLeft,
+  AlertCircle,
+  Mail,
+  ArrowRight,
+  Loader2,
+  CheckCircle2,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-
 import {
   forgotPasswordSchema,
   type ForgotPasswordFormValues,
@@ -36,13 +43,12 @@ export default function ForgotPasswordPage() {
         message: `If this email is registered, we've sent a 6-digit reset code to ${values.email}.`,
       });
     } catch (e) {
-      const msg =
-        e instanceof ApiError
-          ? e.message
-          : "Something went wrong. Please try again.";
       setFormState({
         status: "error",
-        message: msg,
+        message:
+          e instanceof ApiError
+            ? e.message
+            : "Something went wrong. Please try again.",
       });
     }
   };
@@ -50,126 +56,145 @@ export default function ForgotPasswordPage() {
   const isLoading = formState.status === "loading";
   const isSuccess = formState.status === "success";
 
-  // ── Success state ──────────────────────────────────────────────────────────
+  /* ── Success state ── */
   if (isSuccess) {
     return (
-      <div className="space-y-6 text-center">
-        <div className="mx-auto w-14 h-14 rounded-2xl bg-green-500/15 border border-green-500/25 flex items-center justify-center">
-          <svg
-            className="w-7 h-7 text-green-400"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={2}
+      <div className="space-y-7 text-center">
+        {/* Icon */}
+        <div className="flex flex-col items-center">
+          <div
+            className="w-16 h-16 rounded-3xl flex items-center justify-center mb-5"
+            style={{
+              background: "rgba(34,197,94,0.1)",
+              border: "1px solid rgba(34,197,94,0.2)",
+              boxShadow: "0 0 40px rgba(34,197,94,0.1)",
+            }}
           >
-            <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.95 10.83a19.79 19.79 0 01-3.07-8.67A2 2 0 012.86 0h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L6.7 7.95a16 16 0 006.29 6.29l1.31-1.31a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 14.92z" />
-          </svg>
-        </div>
-
-        <div>
+            <CheckCircle2 className="w-8 h-8 text-green-400" />
+          </div>
           <h2
-            className="text-xl font-bold text-white mb-2"
-            style={{ fontFamily: "'Sora', sans-serif" }}
+            className="text-2xl font-bold text-white tracking-tight mb-2"
+            style={{
+              fontFamily: "'Sora', sans-serif",
+              letterSpacing: "-0.02em",
+            }}
           >
             Check your inbox
           </h2>
-          <p className="text-gray-400 text-sm leading-relaxed">
+          <p
+            className="text-[#6b7280] text-sm leading-relaxed max-w-[280px]"
+            style={{ fontFamily: "'DM Sans', sans-serif" }}
+          >
             {formState.message}
           </p>
         </div>
 
-        <div className="space-y-3 pt-2">
+        {/* Actions */}
+        <div className="space-y-3">
           <Link
             href={`/auth/reset-password?email=${encodeURIComponent(form.getValues("email"))}`}
-            className="flex items-center justify-center w-full h-11 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-xl text-sm transition-colors"
+            className="group relative flex items-center justify-center gap-2 w-full h-11 rounded-xl text-sm font-semibold text-white overflow-hidden transition-all duration-200"
+            style={{
+              background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+              boxShadow:
+                "0 0 0 1px rgba(99,102,241,0.5), 0 4px 24px rgba(99,102,241,0.25)",
+              fontFamily: "'DM Sans', sans-serif",
+            }}
           >
-            Enter code &amp; new password
+            <div
+              className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity"
+              style={{
+                background:
+                  "linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.1) 50%, transparent 70%)",
+              }}
+            />
+            <span className="relative flex items-center gap-2">
+              Enter code &amp; new password
+              <ArrowRight className="w-3.5 h-3.5" />
+            </span>
           </Link>
-          <Button
+
+          <button
             onClick={() => {
               form.reset();
               setFormState({ status: "idle" });
             }}
-            variant="outline"
-            className="w-full h-11 border-white/10 bg-white/5 text-gray-300 hover:bg-white/10 rounded-xl"
+            className="w-full h-11 rounded-xl text-sm font-medium text-[#6b7280] hover:text-[#9ca3af] transition-colors"
+            style={{
+              background: "rgba(255,255,255,0.03)",
+              border: "1px solid rgba(255,255,255,0.08)",
+              fontFamily: "'DM Sans', sans-serif",
+            }}
           >
             Try a different email
-          </Button>
+          </button>
+
           <Link
             href="/auth/login"
-            className="block text-center text-sm text-blue-400 hover:text-blue-300 transition-colors"
+            className="flex items-center justify-center gap-1.5 text-sm text-[#4b5563] hover:text-[#6b7280] transition-colors"
+            style={{ fontFamily: "'DM Sans', sans-serif" }}
           >
-            ← Back to sign in
+            <ArrowLeft className="w-3.5 h-3.5" />
+            Back to sign in
           </Link>
         </div>
       </div>
     );
   }
 
-  // ── Form state ─────────────────────────────────────────────────────────────
+  /* ── Form state ── */
   return (
-    <div className="space-y-6">
+    <div className="space-y-7">
+      {/* Back link */}
+      <Link
+        href="/auth/login"
+        className="inline-flex items-center gap-1.5 text-sm text-[#4b5563] hover:text-[#9ca3af] transition-colors"
+        style={{ fontFamily: "'DM Sans', sans-serif" }}
+      >
+        <ArrowLeft className="w-3.5 h-3.5" />
+        Back to sign in
+      </Link>
+
       {/* Header */}
       <div>
-        <Link
-          href="/auth/login"
-          className="inline-flex items-center gap-1.5 text-gray-500 hover:text-gray-300 text-sm transition-colors mb-6"
+        <div
+          className="w-11 h-11 rounded-2xl flex items-center justify-center mb-5"
+          style={{
+            background: "rgba(99,102,241,0.12)",
+            border: "1px solid rgba(99,102,241,0.25)",
+          }}
         >
-          <svg
-            viewBox="0 0 24 24"
-            className="w-4 h-4"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path d="M19 12H5M12 5l-7 7 7 7" />
-          </svg>
-          Back to sign in
-        </Link>
-
-        <div className="w-12 h-12 rounded-xl bg-blue-600/15 border border-blue-500/20 flex items-center justify-center mb-4">
-          <svg
-            className="w-6 h-6 text-blue-400"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-            <path d="M7 11V7a5 5 0 0110 0v4" />
-          </svg>
+          <Mail className="w-5 h-5 text-indigo-400" />
         </div>
-
         <h1
           className="text-2xl font-bold text-white tracking-tight mb-1"
-          style={{ fontFamily: "'Sora', sans-serif" }}
+          style={{ fontFamily: "'Sora', sans-serif", letterSpacing: "-0.02em" }}
         >
           Reset your password
         </h1>
-        <p className="text-gray-500 text-sm">
+        <p
+          className="text-[#6b7280] text-sm"
+          style={{ fontFamily: "'DM Sans', sans-serif" }}
+        >
           Enter your email and we&apos;ll send a 6-digit reset code.
         </p>
       </div>
 
       {/* Error banner */}
       {formState.status === "error" && (
-        <div className="flex items-start gap-3 p-3.5 rounded-xl bg-red-500/10 border border-red-500/20">
-          <svg
-            className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="8" x2="12" y2="12" />
-            <line x1="12" y1="16" x2="12.01" y2="16" />
-          </svg>
-          <p className="text-red-400 text-sm">{formState.message}</p>
+        <div
+          className="flex items-start gap-3 p-3.5 rounded-xl text-sm"
+          style={{
+            background: "rgba(239,68,68,0.08)",
+            border: "1px solid rgba(239,68,68,0.2)",
+            fontFamily: "'DM Sans', sans-serif",
+          }}
+        >
+          <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+          <p className="text-red-400">{formState.message}</p>
         </div>
       )}
 
-      {/* Form - removed Form wrapper */}
       <form
         onSubmit={form.handleSubmit(onSubmit)}
         className="space-y-4"
@@ -184,38 +209,38 @@ export default function ForgotPasswordPage() {
           autoComplete="email"
         />
 
-        <Button
+        <button
           type="submit"
           disabled={isLoading}
-          className="w-full h-11 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-xl transition-all shadow-lg shadow-blue-600/20 hover:shadow-blue-600/30 disabled:opacity-60 disabled:cursor-not-allowed"
+          className="group relative w-full h-11 rounded-xl text-sm font-semibold text-white overflow-hidden transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+          style={{
+            background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
+            boxShadow: isLoading
+              ? "none"
+              : "0 0 0 1px rgba(99,102,241,0.5), 0 4px 24px rgba(99,102,241,0.25)",
+            fontFamily: "'DM Sans', sans-serif",
+          }}
         >
-          {isLoading ? (
-            <span className="flex items-center gap-2">
-              <svg
-                className="w-4 h-4 animate-spin"
-                viewBox="0 0 24 24"
-                fill="none"
-              >
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                />
-              </svg>
-              Sending…
-            </span>
-          ) : (
-            "Send reset code"
-          )}
-        </Button>
+          <div
+            className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity"
+            style={{
+              background:
+                "linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.1) 50%, transparent 70%)",
+            }}
+          />
+          <span className="relative flex items-center justify-center gap-2">
+            {isLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" /> Sending…
+              </>
+            ) : (
+              <>
+                Send reset code{" "}
+                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+              </>
+            )}
+          </span>
+        </button>
       </form>
     </div>
   );
