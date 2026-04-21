@@ -10,6 +10,12 @@ export type {
   IOAuthAccount,
   IOAuthAccountModel,
 } from "../models/oauth-account-model";
+export type { IProject, IProjectModel } from "../models/project.model";
+export type {
+  DeploymentStatus,
+  IDeployment,
+  IDeploymentModel,
+} from "../models/deployment.model";
 
 // ─── Token Payloads ───────────────────────────────────────────────────────────
 export interface AccessTokenPayload {
