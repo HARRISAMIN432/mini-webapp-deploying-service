@@ -7,15 +7,11 @@ import jwt from "jsonwebtoken";
 
 const router = Router();
 
-// Debug logging for all routes
 router.use((req, res, next) => {
   console.log(`📌 Deployment route: ${req.method} ${req.originalUrl}`);
   next();
 });
 
-// ============================================================
-// ✅ SSE ROUTE - MUST BE BEFORE authenticate middleware
-// ============================================================
 router.get("/logs/stream", (req: Request, res: Response) => {
   console.log("📡 SSE stream request received", {
     query: req.query,
@@ -35,7 +31,7 @@ router.get("/logs/stream", (req: Request, res: Response) => {
     }
 
     // Verify token and extract user ID
-    const payload = jwt.verify(token, process.env.JWT_SECRET!) as {
+    const payload = jwt.verify(token, process.env.ACCESS_SECRET!) as {
       id?: string;
       sub?: string;
     };

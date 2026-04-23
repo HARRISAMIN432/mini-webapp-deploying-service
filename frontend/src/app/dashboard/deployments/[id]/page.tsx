@@ -103,17 +103,16 @@ function getLineColor(text: string): string {
   return "#94a3b8";
 }
 
-// ─── Token helper ─────────────────────────────────────────────────────────────
 function getAuthToken(): string | null {
   if (typeof window === "undefined") return null;
-  return (
-    localStorage.getItem("token") ||
-    document.cookie
-      .split("; ")
-      .find((r) => r.startsWith("token="))
-      ?.split("=")[1] ||
-    null
+
+  const token = localStorage.getItem("shipstack_access_token");
+
+  console.log(
+    "🔑 Token from localStorage:",
+    token ? `${token.substring(0, 20)}...` : "null",
   );
+  return token;
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
