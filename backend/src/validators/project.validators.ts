@@ -15,6 +15,18 @@ export const createProjectSchema = z.object({
   repoUrl: githubRepoUrlField,
   framework: z.string().trim().min(2).max(100),
   branch: z.string().trim().min(1).max(100).default("main"),
+  rootDirectory: z.string().trim().min(1).max(300).default("./"),
+  installCommand: z.string().trim().min(1).max(300).default("npm install"),
+  buildCommand: z.string().trim().min(1).max(300).default("npm run build"),
+  outputDirectory: z.string().trim().min(1).max(300).default("dist"),
+  envVars: z
+    .array(
+      z.object({
+        key: z.string().trim().min(1).max(100),
+        value: z.string().max(2000),
+      }),
+    )
+    .default([]),
 });
 
 export const updateProjectSchema = z.object({
@@ -22,6 +34,18 @@ export const updateProjectSchema = z.object({
   repoUrl: githubRepoUrlField.optional(),
   framework: z.string().trim().min(2).max(100).optional(),
   branch: z.string().trim().min(1).max(100).optional(),
+  rootDirectory: z.string().trim().min(1).max(300).optional(),
+  installCommand: z.string().trim().min(1).max(300).optional(),
+  buildCommand: z.string().trim().min(1).max(300).optional(),
+  outputDirectory: z.string().trim().min(1).max(300).optional(),
+  envVars: z
+    .array(
+      z.object({
+        key: z.string().trim().min(1).max(100),
+        value: z.string().max(2000),
+      }),
+    )
+    .optional(),
 });
 
 export type CreateProjectInput = z.infer<typeof createProjectSchema>;

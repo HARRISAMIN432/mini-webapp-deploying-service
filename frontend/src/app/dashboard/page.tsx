@@ -1,12 +1,44 @@
-import Link from "next/link";
+"use client";
 
-const cards = [
-  { label: "Total Projects", value: "12" },
-  { label: "Running Deployments", value: "4" },
-  { label: "Queued Builds", value: "2" },
-];
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { apiRequest } from "@/lib/api";
+import type { Deployment, Project } from "@/lib/types/dashboard";
 
 export default function DashboardPage() {
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [deployments, setDeployments] = useState<Deployment[]>([]);
+
+  useEffect(() => {
+    const load = async () => {
+      const [projectData, deploymentData] = await Promise.all([
+        apiRequest<Project[]>("/api/projects"),
+        apiRequest<Deployment[]>("/api/projects/deployments"),
+      ]);
+      setProjects(projectData);
+      setDeployments(deploymentData);
+    };
+    load().catch(() => {});
+  }, []);
+
+  const cards = useMemo(
+    () => [
+      { label: "Total Projects", value: String(projects.length) },
+      {
+        label: "Running Deployments",
+        value: String(deployments.filter((d) => d.status === "running").length),
+      },
+      {
+        label: "Queued Builds",
+        value: String(
+          deployments.filter((d) => d.status === "queued" || d.status === "cloning")
+            .length,
+        ),
+      },
+    ],
+    [deployments, projects.length],
+  );
+
   return (
     <div className="space-y-6">
       <section className="rounded-3xl border border-indigo-400/20 bg-[#0d1320] p-8">

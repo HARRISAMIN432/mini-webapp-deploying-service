@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiRequest, ApiError } from "@/lib/api";
+import type { Deployment } from "@/lib/types/dashboard";
 
 type EnvVar = { key: string; value: string };
 
@@ -85,16 +86,31 @@ export default function NewProjectPage() {
     try {
       setLoading(true);
       setError(null);
-      await apiRequest("/api/projects", {
+
+      // 1. Create the project
+      const project = await apiRequest<{ _id: string }>("/api/projects", {
         method: "POST",
         body: JSON.stringify({
           name: form.name,
           repoUrl: form.repoUrl,
           framework: form.framework,
           branch: form.branch,
+          rootDirectory: form.rootDirectory,
+          installCommand: form.installCommand,
+          buildCommand: form.buildCommand,
+          outputDirectory: form.outputDirectory,
+          envVars: envVars.filter((v) => v.key.trim().length > 0),
         }),
       });
-      router.push("/dashboard/projects");
+
+      // 2. Immediately trigger a deployment
+      const deployment = await apiRequest<Deployment>(
+        `/api/projects/${project._id}/deploy`,
+        { method: "POST" },
+      );
+
+      // 3. Navigate to the deployment detail page to watch logs live
+      router.push(`/dashboard/deployments/${deployment._id}`);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Failed to create project");
     } finally {
@@ -479,10 +495,22 @@ export default function NewProjectPage() {
                 <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5" />
               </svg>
             )}
-            {loading ? "Creating..." : "Create & deploy"}
+            {loading ? "Creating & deploying..." : "Create & deploy"}
           </button>
         </div>
       </form>
+
+      <style jsx global>{`
+        @keyframes pulse {
+          0%,
+          100% {
+            opacity: 1;
+          }
+          50% {
+            opacity: 0.4;
+          }
+        }
+      `}</style>
     </div>
   );
 }

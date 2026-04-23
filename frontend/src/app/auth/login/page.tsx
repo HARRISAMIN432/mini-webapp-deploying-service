@@ -22,7 +22,7 @@ import { OAuthButtons } from "@/components/auth/OAuthButtons";
 import { AuthDivider } from "@/components/auth/AuthDivider";
 import { AuthInputField } from "@/components/auth/AuthInputField";
 import { EyeToggle } from "@/components/auth/EyeToggle";
-import { apiRequest, ApiError } from "@/lib/api";
+import { apiRequest, ApiError, setAccessToken } from "@/lib/api";
 import type { LoginResponse } from "@/lib/types/auth";
 
 type LoginFormData = LoginFormValues;
@@ -143,6 +143,7 @@ export default function LoginPage() {
         else setOtpStep({ kind: "emailOtp", email: data.user.email });
         return;
       }
+      if ("tokens" in data) setAccessToken(data.tokens.accessToken);
       setFormState({ status: "success", message: "Logged in successfully!" });
       router.push("/dashboard");
     } catch (e) {
@@ -157,10 +158,14 @@ export default function LoginPage() {
   const onTotpSubmit = async (values: TotpLoginFormValues) => {
     try {
       setFormState({ status: "loading" });
-      await apiRequest("/api/auth/login/totp", {
+      const data = await apiRequest<{ tokens: { accessToken: string } }>(
+        "/api/auth/login/totp",
+        {
         method: "POST",
         body: JSON.stringify({ email: values.email, token: values.token }),
-      });
+        },
+      );
+      setAccessToken(data.tokens.accessToken);
       setFormState({ status: "success", message: "Logged in successfully!" });
       router.push("/dashboard");
     } catch (e) {
@@ -175,10 +180,14 @@ export default function LoginPage() {
   const onEmailOtpSubmit = async (values: EmailOtpLoginFormValues) => {
     try {
       setFormState({ status: "loading" });
-      await apiRequest("/api/auth/login/email-otp", {
+      const data = await apiRequest<{ tokens: { accessToken: string } }>(
+        "/api/auth/login/email-otp",
+        {
         method: "POST",
         body: JSON.stringify({ email: values.email, otp: values.otp }),
-      });
+        },
+      );
+      setAccessToken(data.tokens.accessToken);
       setFormState({ status: "success", message: "Logged in successfully!" });
       router.push("/dashboard");
     } catch (e) {

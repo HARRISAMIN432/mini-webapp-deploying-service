@@ -6,7 +6,13 @@ export interface IProject {
   repoUrl: string;
   framework: string;
   branch: string;
+  rootDirectory: string;
+  installCommand: string;
+  buildCommand: string;
+  outputDirectory: string;
+  envVars: Array<{ key: string; value: string }>;
   ownerId: Types.ObjectId;
+  activeDeploymentId: Types.ObjectId | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -42,10 +48,63 @@ const projectSchema = new Schema<IProject, IProjectModel>(
       default: "main",
       maxlength: [100, "Branch is too long"],
     },
+    rootDirectory: {
+      type: String,
+      required: true,
+      trim: true,
+      default: "./",
+      maxlength: [300, "Root directory is too long"],
+    },
+    installCommand: {
+      type: String,
+      required: true,
+      trim: true,
+      default: "npm install",
+      maxlength: [300, "Install command is too long"],
+    },
+    buildCommand: {
+      type: String,
+      required: true,
+      trim: true,
+      default: "npm run build",
+      maxlength: [300, "Build command is too long"],
+    },
+    outputDirectory: {
+      type: String,
+      required: true,
+      trim: true,
+      default: "dist",
+      maxlength: [300, "Output directory is too long"],
+    },
+    envVars: {
+      type: [
+        {
+          key: {
+            type: String,
+            required: true,
+            trim: true,
+            maxlength: [100, "Environment variable key is too long"],
+          },
+          value: {
+            type: String,
+            required: true,
+            maxlength: [2000, "Environment variable value is too long"],
+          },
+          _id: false,
+        },
+      ],
+      default: [],
+    },
     ownerId: {
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
+      index: true,
+    },
+    activeDeploymentId: {
+      type: Schema.Types.ObjectId,
+      ref: "Deployment",
+      default: null,
       index: true,
     },
   },

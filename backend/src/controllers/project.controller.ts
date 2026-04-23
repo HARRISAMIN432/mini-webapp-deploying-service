@@ -13,7 +13,9 @@ const getUserId = (req: Request): string => {
 };
 
 const getProjectId = (req: Request): string =>
-  Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  Array.isArray(req.params.projectId)
+    ? req.params.projectId[0]
+    : req.params.projectId;
 
 export const listProjects = async (req: Request, res: Response) => {
   const projects = await projectService.listProjects(getUserId(req));
@@ -57,5 +59,13 @@ export const createDeployment = async (req: Request, res: Response) => {
     getUserId(req),
     getProjectId(req),
   );
-  sendCreated(res, deployment, "Deployment started");
+  sendSuccess(
+    res,
+    {
+      deploymentId: deployment._id.toString(),
+      status: deployment.status,
+    },
+    "Deployment queued",
+    201,
+  );
 };

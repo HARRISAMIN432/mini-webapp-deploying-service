@@ -14,9 +14,13 @@ router.use(authenticate);
 router.get("/", project.listProjects);
 router.post("/", validate(createProjectSchema), project.createProject);
 router.get("/deployments", project.listDeployments);
-router.get("/:id", project.getProject);
-router.patch("/:id", validate(updateProjectSchema), project.updateProject);
-router.delete("/:id", project.deleteProject);
-router.post("/:id/deploy", project.createDeployment);
+router.get("/:projectId", project.getProject);
+router.patch(
+  "/:projectId",
+  validate(updateProjectSchema),
+  project.updateProject,
+);
+router.delete("/:projectId", project.deleteProject);
+router.post("/:projectId/deploy", project.createDeployment);
 
 export default router;

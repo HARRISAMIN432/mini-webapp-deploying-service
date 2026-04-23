@@ -4,11 +4,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const items = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/dashboard/projects", label: "Projects" },
-  { href: "/dashboard/deployments", label: "Deployments" },
-  { href: "/dashboard/logs", label: "Logs" },
-  { href: "/dashboard/domains", label: "Domains" },
+  { href: "/dashboard", label: "Dashboard", exact: true },
+  { href: "/dashboard/projects", label: "Projects", exact: false },
+  { href: "/dashboard/deployments", label: "Deployments", exact: false },
+  { href: "/dashboard/domains", label: "Domains", exact: false },
 ];
 
 export function DashboardSidebar() {
@@ -28,23 +27,29 @@ export function DashboardSidebar() {
         </h1>
       </div>
 
-      <nav className="space-y-2">
+      <nav className="space-y-1">
         {items.map((item) => {
-          const active =
-            pathname === item.href ||
-            (item.href !== "/dashboard" && pathname.startsWith(item.href));
+          const active = item.exact
+            ? pathname === item.href
+            : pathname === item.href || pathname.startsWith(item.href + "/");
 
           return (
             <Link
               key={item.href}
               href={item.href}
-              className={`block rounded-xl px-4 py-3 text-sm font-medium transition-all ${
+              className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all ${
                 active
                   ? "bg-indigo-500/20 text-indigo-200 ring-1 ring-indigo-400/35"
-                  : "text-slate-300 hover:bg-white/5 hover:text-white"
+                  : "text-slate-400 hover:bg-white/5 hover:text-white"
               }`}
               style={{ fontFamily: "'DM Sans', sans-serif" }}
             >
+              <span className="text-base leading-none">
+                {item.href === "/dashboard" && "⬡"}
+                {item.href === "/dashboard/projects" && "◫"}
+                {item.href === "/dashboard/deployments" && "▶"}
+                {item.href === "/dashboard/domains" && "◎"}
+              </span>
               {item.label}
             </Link>
           );

@@ -11,9 +11,10 @@ import { connectDB } from "./config/database";
 import { connectRedis } from "./config/redis";
 import { logger } from "./utils/logger";
 import { errorHandler } from "./middleware/error-handler";
-import { apiLimiter } from "./middleware/rate-limit";
+// import { apiLimiter } from "./middleware/rate-limit";
 import authRoutes from "./routes/auth.route";
 import projectRoutes from "./routes/project.route";
+import deploymentRoutes from "./routes/deployment.route";
 
 const app = express();
 
@@ -33,9 +34,10 @@ app.get("/health", (_req, res) => {
   res.status(200).json({ ok: true });
 });
 
-app.use("/api", apiLimiter);
+// app.use("/api", apiLimiter);
 app.use("/api/auth", authRoutes);
 app.use("/api/projects", projectRoutes);
+app.use("/api/projects/deployments", deploymentRoutes);
 
 app.use(errorHandler);
 

@@ -8,12 +8,19 @@ const limiterResponse = (message: string) => ({
   code: ErrorCode.RATE_LIMITED,
 });
 
-/** General API limiter — 100 req / 15 min */
+// rate-limit.ts
 export const apiLimiter = rateLimit({
   windowMs: env.RATE_LIMIT_WINDOW_MS,
   max: env.RATE_LIMIT_MAX,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => {
+    return (
+      req.originalUrl?.includes("/projects/deployments/logs/stream") ||
+      req.originalUrl?.includes("/deployments/logs/stream") ||
+      req.url?.includes("/logs/stream")
+    );
+  },
   message: limiterResponse("Too many requests, please try again later"),
 });
 

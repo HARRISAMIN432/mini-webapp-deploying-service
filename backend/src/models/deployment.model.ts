@@ -2,9 +2,12 @@ import { Model, Schema, Types, model } from "mongoose";
 
 export const deploymentStatuses = [
   "queued",
+  "cloning",
   "building",
+  "starting",
   "running",
   "failed",
+  "stopped",
 ] as const;
 
 export type DeploymentStatus = (typeof deploymentStatuses)[number];
@@ -14,7 +17,16 @@ export interface IDeployment {
   projectId: Types.ObjectId;
   ownerId: Types.ObjectId;
   status: DeploymentStatus;
+  repoUrl: string;
+  branch: string;
+  commitHash: string | null;
   logs: string[];
+  publicUrl: string | null;
+  containerId: string | null;
+  port: number | null;
+  startedAt: Date | null;
+  completedAt: Date | null;
+  errorMessage: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -41,9 +53,56 @@ const deploymentSchema = new Schema<IDeployment, IDeploymentModel>(
       required: true,
       default: "queued",
     },
+    repoUrl: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: [500, "Repository URL is too long"],
+    },
+    branch: {
+      type: String,
+      required: true,
+      trim: true,
+      default: "main",
+      maxlength: [100, "Branch is too long"],
+    },
+    commitHash: {
+      type: String,
+      default: null,
+      trim: true,
+    },
     logs: {
       type: [String],
       default: [],
+    },
+    publicUrl: {
+      type: String,
+      default: null,
+      trim: true,
+    },
+    containerId: {
+      type: String,
+      default: null,
+      trim: true,
+    },
+    port: {
+      type: Number,
+      default: null,
+      min: [1, "Invalid port"],
+      max: [65535, "Invalid port"],
+    },
+    startedAt: {
+      type: Date,
+      default: null,
+    },
+    completedAt: {
+      type: Date,
+      default: null,
+    },
+    errorMessage: {
+      type: String,
+      default: null,
+      maxlength: [1000, "Error message too long"],
     },
   },
   {
@@ -59,6 +118,7 @@ const deploymentSchema = new Schema<IDeployment, IDeploymentModel>(
 
 deploymentSchema.index({ ownerId: 1, createdAt: -1 });
 deploymentSchema.index({ projectId: 1, createdAt: -1 });
+deploymentSchema.index({ status: 1, createdAt: -1 });
 
 export const Deployment = model<IDeployment, IDeploymentModel>(
   "Deployment",
