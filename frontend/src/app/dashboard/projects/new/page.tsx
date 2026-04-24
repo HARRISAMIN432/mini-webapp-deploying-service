@@ -87,7 +87,6 @@ export default function NewProjectPage() {
       setLoading(true);
       setError(null);
 
-      // 1. Create the project
       const project = await apiRequest<{ _id: string }>("/api/projects", {
         method: "POST",
         body: JSON.stringify({
@@ -103,14 +102,14 @@ export default function NewProjectPage() {
         }),
       });
 
-      // 2. Immediately trigger a deployment
       const deployment = await apiRequest<Deployment>(
         `/api/projects/${project._id}/deploy`,
         { method: "POST" },
       );
 
-      // 3. Navigate to the deployment detail page to watch logs live
-      router.push(`/dashboard/deployments/${deployment._id}`);
+      if (deployment?._id)
+        router.push(`/dashboard/deployments/${deployment._id}`);
+      else router.push("/dashboard/deployments");
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Failed to create project");
     } finally {

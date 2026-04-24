@@ -25,7 +25,7 @@ import {
 } from "../services/git.service";
 import { findAvailablePort } from "../services/port.service";
 import {
-  buildDockerImage,
+  buildDockerImageWithEnv,
   ensureDockerAvailable,
   ensureDockerfile,
   runDockerContainer,
@@ -92,7 +92,6 @@ const getContainerState = async (
   }
 };
 
-// Add this near the top of deployment.worker.ts after imports
 const debugLog = (deploymentId: string, message: string, data?: any) => {
   const timestamp = new Date().toISOString();
   console.log(`[${timestamp}] [WORKER] [${deploymentId.slice(-8)}] ${message}`);
@@ -104,7 +103,53 @@ const debugLog = (deploymentId: string, message: string, data?: any) => {
   }
 };
 
-// Update the processDeployment function with extensive logging
+/**
+ * Clean up existing container with the same name (idempotent operation)
+ */
+const cleanupExistingContainer = async (
+  containerName: string,
+  deploymentId: string,
+): Promise<void> => {
+  try {
+    debugLog(
+      deploymentId,
+      `🧹 Checking for existing container: ${containerName}`,
+    );
+
+    // Check if container exists
+    const { stdout } = await runRepoCommand(
+      process.cwd(),
+      "docker",
+      [
+        "ps",
+        "-a",
+        "--filter",
+        `name=${containerName}`,
+        "--format",
+        "{{.Names}}",
+      ],
+      5000,
+    ).catch(() => ({ stdout: "" }));
+
+    if (stdout.trim()) {
+      debugLog(deploymentId, `🗑️ Found existing container, removing...`);
+      await stopAndRemoveContainer(containerName);
+      await appendDeploymentLog(
+        deploymentId,
+        `✓ Removed stale container: ${containerName}`,
+      );
+    } else {
+      debugLog(deploymentId, `✅ No existing container found`);
+    }
+  } catch (error) {
+    debugLog(
+      deploymentId,
+      `⚠️ Error checking for existing container (non-critical)`,
+      error,
+    );
+  }
+};
+
 const processDeployment = async (payload: {
   deploymentId: string;
   projectId: string;
@@ -129,11 +174,29 @@ const processDeployment = async (payload: {
     return;
   }
 
+  // Get environment variables from project
+  const envVars = project.envVars || [];
+
   debugLog(payload.deploymentId, "✅ Found deployment and project", {
     deploymentStatus: deployment.status,
     projectName: project.name,
     repoUrl: deployment.repoUrl,
+    envVarsCount: envVars.length,
+    envVarKeys: envVars.map((e) => e.key),
   });
+
+  // Log environment variables count to deployment log
+  if (envVars.length > 0) {
+    await appendDeploymentLog(
+      payload.deploymentId,
+      `🔧 Found ${envVars.length} environment variable(s): ${envVars.map((e) => e.key).join(", ")}`,
+    );
+  } else {
+    await appendDeploymentLog(
+      payload.deploymentId,
+      `ℹ️ No environment variables configured for this project`,
+    );
+  }
 
   if (deployment.ownerId.toString() !== payload.ownerId) {
     debugLog(payload.deploymentId, "❌ Unauthorized deployment payload", {
@@ -153,7 +216,9 @@ const processDeployment = async (payload: {
     `${payload.deploymentId}-${attemptId}`,
   );
   const imageTag = `app-${payload.deploymentId}`.toLowerCase();
-  const containerName = `deploy-${payload.deploymentId}`.toLowerCase();
+  // Use unique container name with timestamp to avoid conflicts
+  const containerName =
+    `deploy-${payload.deploymentId}-${Date.now()}`.toLowerCase();
   let containerId: string | null = null;
   let frameworkConfig: FrameworkConfig | null = null;
 
@@ -197,8 +262,8 @@ const processDeployment = async (payload: {
     const appDir = resolveProjectRootDir(workDir, project.rootDirectory);
     debugLog(payload.deploymentId, "📂 Resolved app directory", { appDir });
 
-    // Detect framework and get configuration
-    frameworkConfig = await getFrameworkInfo(appDir);
+    // Detect framework and get configuration (pass env vars for Dockerfile generation)
+    frameworkConfig = await getFrameworkInfo(appDir, envVars);
     debugLog(payload.deploymentId, "🔍 Detected framework", frameworkConfig);
 
     await appendDeploymentLog(
@@ -340,16 +405,29 @@ const processDeployment = async (payload: {
     );
 
     await ensureDockerAvailable();
-    await ensureDockerfile(appDir);
 
-    debugLog(payload.deploymentId, "🐳 Building Docker image");
+    // Clean up any existing container before proceeding
+    await cleanupExistingContainer(containerName, payload.deploymentId);
+
+    // Pass envVars to ensureDockerfile
+    await ensureDockerfile(appDir, envVars);
+
+    debugLog(
+      payload.deploymentId,
+      "🐳 Building Docker image with environment variables",
+      {
+        envVarsCount: envVars.length,
+      },
+    );
     await appendDeploymentLog(
       payload.deploymentId,
-      "🐳 Building Docker image...",
+      `🐳 Building Docker image${envVars.length > 0 ? ` with ${envVars.length} build args...` : "..."}`,
     );
+
     try {
-      await buildDockerImage(appDir, imageTag);
+      await buildDockerImageWithEnv(appDir, imageTag, envVars);
       debugLog(payload.deploymentId, "✅ Docker image built successfully");
+      await appendDeploymentLog(payload.deploymentId, "✓ Docker image built");
     } catch (dockerBuildErr) {
       const msg =
         dockerBuildErr instanceof Error
@@ -362,7 +440,6 @@ const processDeployment = async (payload: {
       );
       throw dockerBuildErr;
     }
-    await appendDeploymentLog(payload.deploymentId, "✓ Docker image built");
 
     await appendDeploymentLog(payload.deploymentId, "▶ Starting container...");
     debugLog(payload.deploymentId, "▶ Starting Docker container", {
@@ -371,6 +448,7 @@ const processDeployment = async (payload: {
       containerName,
       hostPort: port,
       containerPort: frameworkConfig?.port,
+      envVarsCount: envVars.length,
     });
 
     try {
@@ -380,8 +458,21 @@ const processDeployment = async (payload: {
         containerName,
         hostPort: port,
         containerPort: frameworkConfig?.port,
+        envVars,
       });
       debugLog(payload.deploymentId, "✅ Container started", { containerId });
+
+      if (envVars.length > 0) {
+        await appendDeploymentLog(
+          payload.deploymentId,
+          `✓ Container started with ${envVars.length} runtime environment variables`,
+        );
+      } else {
+        await appendDeploymentLog(
+          payload.deploymentId,
+          `✓ Container started (id: ${containerId?.slice(0, 12)})`,
+        );
+      }
     } catch (runErr) {
       const msg = runErr instanceof Error ? runErr.message : String(runErr);
       debugLog(payload.deploymentId, "❌ Failed to start container", {
@@ -393,10 +484,6 @@ const processDeployment = async (payload: {
       );
       throw runErr;
     }
-    await appendDeploymentLog(
-      payload.deploymentId,
-      `✓ Container started (id: ${containerId?.slice(0, 12)})`,
-    );
 
     const publicUrl = `http://localhost:${port}`;
     const healthPath = frameworkConfig?.healthCheckPath || "/";
@@ -415,7 +502,7 @@ const processDeployment = async (payload: {
       `${publicUrl}${healthPath}`,
       containerId!,
       payload.deploymentId,
-      120_000,
+      40_000,
     );
 
     if (!healthy) {
@@ -516,7 +603,6 @@ const waitForHealth = async (
         const lines = rawLogs.split("\n");
         const newLines = lines.slice(lastLogOffset);
         if (newLines.length > 0) {
-          // Emit each line individually so the terminal renders them cleanly
           for (const line of newLines) {
             if (line.trim()) {
               await appendDeploymentLog(deploymentId, `[container] ${line}`);
@@ -533,7 +619,6 @@ const waitForHealth = async (
     if (state === "exited" || state === "dead") {
       lastError = `Container exited prematurely (state: ${state})`;
 
-      // Flush all remaining container logs before reporting failure
       const finalLogs = await getContainerLogs(containerId, 300);
       if (finalLogs) {
         const lines = finalLogs.split("\n");
@@ -570,14 +655,12 @@ const failDeployment = async (
   containerId?: string | null,
 ) => {
   if (containerId) {
-    // Capture final container logs before teardown
     const finalLogs = await getContainerLogs(containerId, 300);
     if (finalLogs) {
       await appendDeploymentLog(
         deploymentId,
         `──── Container output (last 300 lines) ────`,
       );
-      // Write in chunks so the terminal doesn't overflow a single log entry
       const lines = finalLogs.split("\n").filter((l) => l.trim());
       for (const line of lines) {
         await appendDeploymentLog(deploymentId, `[container] ${line}`);

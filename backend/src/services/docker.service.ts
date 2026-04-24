@@ -12,8 +12,52 @@ interface FrameworkConfig {
   healthCheckPath?: string;
 }
 
+export const buildDockerImageWithEnv = async (
+  repoDir: string,
+  imageTag: string,
+  envVars: Array<{ key: string; value: string }>,
+) => {
+  // Build args for Docker build (these become build-time env vars)
+  const buildArgs = envVars.reduce((args, env) => {
+    return [...args, "--build-arg", `${env.key}=${env.value}`];
+  }, [] as string[]);
+
+  await runRepoCommand(
+    repoDir,
+    "docker",
+    ["build", "-t", imageTag, ...buildArgs, "."],
+    600000,
+  );
+};
+
+const generateDockerfileWithEnv = (
+  baseDockerfile: string,
+  envVars: Array<{ key: string; value: string }>,
+): string => {
+  if (envVars.length === 0) return baseDockerfile;
+
+  // Generate ARG declarations for build-time
+  const buildArgs = envVars.map((env) => `ARG ${env.key}`).join("\n");
+
+  // Generate ENV exports for runtime (these become available in the container)
+  const envExports = envVars
+    .map((env) => `ENV ${env.key}=${env.key}`)
+    .join("\n");
+
+  // Insert ARGs after FROM, and ENVs after ARGs
+  const lines = baseDockerfile.split("\n");
+  const fromIndex = lines.findIndex((line) => line.startsWith("FROM"));
+
+  if (fromIndex !== -1) {
+    lines.splice(fromIndex + 1, 0, "", buildArgs, "", envExports);
+  }
+
+  return lines.join("\n");
+};
+
 const getFrameworkConfig = async (
   repoDir: string,
+  envVars: Array<{ key: string; value: string }> = [],
 ): Promise<FrameworkConfig> => {
   // Check for package.json (Node.js projects)
   const packageJsonPath = path.join(repoDir, "package.json");
@@ -56,9 +100,11 @@ const getFrameworkConfig = async (
   // Check for Express
   const hasExpress = packageJson?.dependencies?.express;
 
+  let baseConfig: FrameworkConfig;
+
   // Vite configuration
   if (hasVite) {
-    return {
+    baseConfig = {
       port: 5173,
       type: "vite",
       dockerfile: `FROM node:20-alpine
@@ -77,10 +123,9 @@ CMD ["sh", "-c", "npm run dev -- --host 0.0.0.0 --port 5173 || npm run preview -
       healthCheckPath: "/",
     };
   }
-
   // Next.js configuration
-  if (hasNext) {
-    return {
+  else if (hasNext) {
+    baseConfig = {
       port: 3000,
       type: "next",
       dockerfile: `FROM node:20-alpine
@@ -99,9 +144,8 @@ CMD ["sh", "-c", "npm run start -- -H 0.0.0.0 -p 3000 || npm run dev -- -H 0.0.0
       healthCheckPath: "/api/health",
     };
   }
-
   // Express/Node.js configuration
-  if (hasExpress || packageJson) {
+  else if (hasExpress || packageJson) {
     // Detect if it has a start script
     const hasStartScript = packageJson?.scripts?.start;
     const hasDevScript = packageJson?.scripts?.dev;
@@ -111,7 +155,7 @@ CMD ["sh", "-c", "npm run start -- -H 0.0.0.0 -p 3000 || npm run dev -- -H 0.0.0
     else if (hasDevScript) startCommand = "npm run dev";
     else if (packageJson?.main) startCommand = `node ${packageJson.main}`;
 
-    return {
+    baseConfig = {
       port: 3000,
       type: "node",
       dockerfile: `FROM node:20-alpine
@@ -130,9 +174,8 @@ CMD ["sh", "-c", "${startCommand}"]
       healthCheckPath: "/health",
     };
   }
-
   // Python configuration
-  if (isPython) {
+  else if (isPython) {
     // Detect framework
     const hasFlask = await fs
       .access(path.join(repoDir, "app.py"))
@@ -183,7 +226,7 @@ CMD ["flask", "run", "--host=0.0.0.0", "--port=8000"]
       startCommand = "python -m http.server 8000";
     }
 
-    return {
+    baseConfig = {
       port: 8000,
       type: "python",
       dockerfile,
@@ -192,12 +235,12 @@ CMD ["flask", "run", "--host=0.0.0.0", "--port=8000"]
       healthCheckPath: "/",
     };
   }
-
   // Default Node.js fallback
-  return {
-    port: 3000,
-    type: "node",
-    dockerfile: `FROM node:20-alpine
+  else {
+    baseConfig = {
+      port: 3000,
+      type: "node",
+      dockerfile: `FROM node:20-alpine
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci || npm install
@@ -206,17 +249,31 @@ RUN npm run build || true
 EXPOSE 3000
 CMD ["npm", "start"]
 `,
-    buildCommand: "npm run build || true",
-    startCommand: "npm start",
-    healthCheckPath: "/",
-  };
+      buildCommand: "npm run build || true",
+      startCommand: "npm start",
+      healthCheckPath: "/",
+    };
+  }
+
+  // Inject environment variables into Dockerfile if any exist
+  if (envVars.length > 0) {
+    baseConfig.dockerfile = generateDockerfileWithEnv(
+      baseConfig.dockerfile,
+      envVars,
+    );
+  }
+
+  return baseConfig;
 };
 
 export const ensureDockerAvailable = async () => {
   await runRepoCommand(process.cwd(), "docker", ["--version"], 15000);
 };
 
-export const ensureDockerfile = async (repoDir: string) => {
+export const ensureDockerfile = async (
+  repoDir: string,
+  envVars: Array<{ key: string; value: string }> = [],
+) => {
   const dockerFilePath = path.join(repoDir, "Dockerfile");
 
   try {
@@ -224,14 +281,15 @@ export const ensureDockerfile = async (repoDir: string) => {
     await fs.access(dockerFilePath);
     return; // Use existing Dockerfile
   } catch {
-    // Generate framework-specific Dockerfile
-    const config = await getFrameworkConfig(repoDir);
+    // Generate framework-specific Dockerfile with env vars
+    const config = await getFrameworkConfig(repoDir, envVars);
     await fs.writeFile(dockerFilePath, config.dockerfile, "utf-8");
 
-    // Log what was detected (optional - you can integrate with your logger)
+    // Log what was detected
     console.log(`Generated Dockerfile for ${repoDir}:`, {
       port: config.port,
       startCommand: config.startCommand,
+      envVarsCount: envVars.length,
     });
 
     return config;
@@ -252,7 +310,8 @@ export const runDockerContainer = async (params: {
   imageTag: string;
   containerName: string;
   hostPort: number;
-  containerPort?: number; // Optional custom container port
+  containerPort?: number;
+  envVars?: Array<{ key: string; value: string }>; // Add env vars parameter
 }) => {
   // Detect the framework to get the correct container port
   let containerPort = params.containerPort || 3000;
@@ -265,18 +324,29 @@ export const runDockerContainer = async (params: {
     containerPort = params.containerPort || 3000;
   }
 
+  // Build the docker run command with environment variables
+  const dockerArgs = [
+    "run",
+    "-d",
+    "-p",
+    `${params.hostPort}:${containerPort}`,
+    "--name",
+    params.containerName,
+  ];
+
+  // Add environment variables as -e flags
+  if (params.envVars && params.envVars.length > 0) {
+    for (const env of params.envVars) {
+      dockerArgs.push("-e", `${env.key}=${env.value}`);
+    }
+  }
+
+  dockerArgs.push(params.imageTag);
+
   const { stdout } = await runRepoCommand(
     params.repoDir,
     "docker",
-    [
-      "run",
-      "-d",
-      "-p",
-      `${params.hostPort}:${containerPort}`,
-      "--name",
-      params.containerName,
-      params.imageTag,
-    ],
+    dockerArgs,
     60000,
   );
   return stdout.trim();
@@ -295,9 +365,11 @@ export const stopAndRemoveContainer = async (containerIdOrName: string) => {
   }
 };
 
-// Helper function to get framework info (useful for logging/health checks)
-export const getFrameworkInfo = async (repoDir: string) => {
-  return await getFrameworkConfig(repoDir);
+export const getFrameworkInfo = async (
+  repoDir: string,
+  envVars: Array<{ key: string; value: string }> = [],
+) => {
+  return await getFrameworkConfig(repoDir, envVars);
 };
 
 export type { FrameworkConfig };
