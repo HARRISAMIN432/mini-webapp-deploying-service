@@ -437,7 +437,7 @@ export default function ProjectsPage() {
       `/api/projects/${projectId}/deploy`,
       { method: "POST" },
     );
-    router.push(`/dashboard/deployments/${newDeployment._id}`);
+    router.push(`/dashboard/deployments`);
   };
 
   const liveCount = [...deploymentByProject.values()].filter(

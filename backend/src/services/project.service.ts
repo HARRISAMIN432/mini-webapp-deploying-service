@@ -1,13 +1,26 @@
+/**
+ * project.service.ts  (Phase 4 — fixed)
+ *
+ * Fixes vs previous version:
+ *  1. deleteProject now stops all running containers + unregisters nginx routes
+ *  2. stopDeployment now clears project.activeDeploymentId
+ *  3. createDeployment checks only truly active statuses (not stopped/failed)
+ */
+
 import { Types } from "mongoose";
 import { Deployment } from "../models/deployment.model";
 import { Project } from "../models/project.model";
 import { conflict, notFound } from "../utils/errors";
 import { enqueueDeployment } from "../queue/deployment.queue";
 import { appendDeploymentLog } from "./logger.service";
+import { stopAndRemoveContainer } from "./docker.service";
+import { unregisterRoute, toSubdomain } from "./nginx.service";
 import type {
   CreateProjectInput,
   UpdateProjectInput,
 } from "../validators/project.validators";
+
+// ─── Shared helpers ───────────────────────────────────────────────────────────
 
 const sanitizeProjectInput = <
   T extends { envVars?: Array<{ key: string; value: string }> },
@@ -34,6 +47,30 @@ const ensureProjectOwnership = async (projectId: string, ownerId: string) => {
   return project;
 };
 
+// ─── Helper: tear down a deployment's container + nginx route ─────────────────
+
+const teardownDeployment = async (deployment: {
+  containerId?: string | null;
+  subdomain?: string | null;
+}) => {
+  if (deployment.containerId) {
+    try {
+      await stopAndRemoveContainer(deployment.containerId);
+    } catch {
+      // Container may already be gone — not fatal
+    }
+  }
+  if (deployment.subdomain) {
+    try {
+      await unregisterRoute(deployment.subdomain);
+    } catch {
+      // Best-effort
+    }
+  }
+};
+
+// ─── Project CRUD ─────────────────────────────────────────────────────────────
+
 export const listProjects = async (ownerId: string) =>
   Project.find({ ownerId: new Types.ObjectId(ownerId) }).sort({
     createdAt: -1,
@@ -49,6 +86,7 @@ export const createProject = async (
     name: safeInput.name,
   });
   if (existing) throw conflict("A project with this name already exists");
+  console.log("existing", existing);
 
   return Project.create({
     ...safeInput,
@@ -59,10 +97,6 @@ export const createProject = async (
 export const getProject = async (ownerId: string, projectId: string) =>
   ensureProjectOwnership(projectId, ownerId);
 
-/**
- * Fetch logs for a specific deployment (scoped by deploymentId + ownerId).
- * Used by the SSE stream and the deployment-detail REST endpoint.
- */
 export const getLogsForDeployment = async (
   ownerId: string,
   deploymentId: string,
@@ -110,10 +144,7 @@ export const getLogsForDeployment = async (
   });
 };
 
-/**
- * @deprecated Use getLogsForDeployment for scoped logs.
- * Kept for backward-compatibility with the global /logs page (if still mounted).
- */
+/** @deprecated Use getLogsForDeployment for scoped logs. */
 export const getRecentLogs = async (
   ownerId: string,
   options: { limit: number; allRecent?: boolean },
@@ -201,8 +232,20 @@ export const updateProject = async (
   return project;
 };
 
+/**
+ * Delete a project and ALL its deployments.
+ *
+ * Phase 4: also stops every running container and unregisters nginx routes
+ * so nothing is left dangling after deletion.
+ */
 export const deleteProject = async (ownerId: string, projectId: string) => {
   const project = await ensureProjectOwnership(projectId, ownerId);
+
+  // Tear down every deployment that has a live container or nginx route
+  const deployments = await Deployment.find({ projectId: project._id });
+  await Promise.allSettled(deployments.map(teardownDeployment));
+
+  // Now delete all deployment records and the project itself
   await Deployment.deleteMany({
     projectId: project._id,
     ownerId: new Types.ObjectId(ownerId),
@@ -228,6 +271,7 @@ export const getDeployment = async (ownerId: string, deploymentId: string) => {
 export const createDeployment = async (ownerId: string, projectId: string) => {
   const project = await ensureProjectOwnership(projectId, ownerId);
 
+  // Only block on genuinely in-progress statuses — stopped/failed are fine to redeploy
   if (project.activeDeploymentId) {
     const active = await Deployment.findOne({
       _id: project.activeDeploymentId,
@@ -246,6 +290,7 @@ export const createDeployment = async (ownerId: string, projectId: string) => {
     branch: project.branch,
     logs: [],
     commitHash: null,
+    subdomain: null,
     publicUrl: null,
     containerId: null,
     port: null,
@@ -271,6 +316,14 @@ export const createDeployment = async (ownerId: string, projectId: string) => {
   return deployment;
 };
 
+/**
+ * Stop a running deployment.
+ *
+ * Phase 4 fixes:
+ *  1. Stops + removes the Docker container
+ *  2. Unregisters the nginx subdomain route
+ *  3. Clears project.activeDeploymentId so re-deploy is not blocked
+ */
 export const stopDeployment = async (ownerId: string, deploymentId: string) => {
   const deployment = await Deployment.findOne({
     _id: new Types.ObjectId(deploymentId),
@@ -278,13 +331,27 @@ export const stopDeployment = async (ownerId: string, deploymentId: string) => {
   });
   if (!deployment) throw notFound("Deployment not found");
 
+  // Tear down container + nginx route
+  await teardownDeployment(deployment);
+
   deployment.status = "stopped";
   deployment.completedAt = new Date();
   deployment.errorMessage = null;
   await deployment.save();
+
+  // FIX: clear activeDeploymentId on the project so next deploy isn't blocked
+  await Project.updateOne(
+    {
+      _id: deployment.projectId,
+      activeDeploymentId: deployment._id,
+    },
+    { $set: { activeDeploymentId: null } },
+  );
+
   await appendDeploymentLog(
     deployment._id,
     "Deployment marked as stopped by user",
   );
+
   return deployment;
 };

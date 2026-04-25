@@ -23,15 +23,20 @@ export const listProjects = async (req: Request, res: Response) => {
 };
 
 export const createProject = async (req: Request, res: Response) => {
+  console.log("createProject called", req.body); // add this
   const project = await projectService.createProject(
     getUserId(req),
     req.body as CreateProjectInput,
   );
+  console.log("Project", project);
   sendCreated(res, project, "Project created successfully");
 };
 
 export const getProject = async (req: Request, res: Response) => {
-  const project = await projectService.getProject(getUserId(req), getProjectId(req));
+  const project = await projectService.getProject(
+    getUserId(req),
+    getProjectId(req),
+  );
   sendSuccess(res, project);
 };
 

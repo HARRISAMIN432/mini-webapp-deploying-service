@@ -1,3 +1,12 @@
+/**
+ * deployment.model.ts  (Phase 4 patch)
+ *
+ * Added fields vs Phase 3:
+ *   - subdomain: string | null  — the URL-safe subdomain assigned to this deployment
+ *
+ * Everything else is unchanged from Phase 3.
+ */
+
 import { Model, Schema, Types, model } from "mongoose";
 
 export const deploymentStatuses = [
@@ -21,7 +30,10 @@ export interface IDeployment {
   branch: string;
   commitHash: string | null;
   logs: string[];
-  publicUrl: string | null;
+  // ── Phase 4 additions ──────────────────────────────────────────────────────
+  subdomain: string | null; // e.g. "portfolio"
+  // ──────────────────────────────────────────────────────────────────────────
+  publicUrl: string | null; // e.g. "http://portfolio.localhost"
   containerId: string | null;
   port: number | null;
   startedAt: Date | null;
@@ -75,6 +87,15 @@ const deploymentSchema = new Schema<IDeployment, IDeploymentModel>(
       type: [String],
       default: [],
     },
+    // ── Phase 4 ──────────────────────────────────────────────────────────────
+    subdomain: {
+      type: String,
+      default: null,
+      trim: true,
+      maxlength: [63, "Subdomain too long"],
+      index: true,
+    },
+    // ─────────────────────────────────────────────────────────────────────────
     publicUrl: {
       type: String,
       default: null,

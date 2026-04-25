@@ -1,8 +1,11 @@
+/**
+ * docker.service.ts  (Phase 4 — production builds only)
+ */
+
 import fs from "fs/promises";
 import path from "path";
 import { runRepoCommand } from "./git.service";
 
-// Framework-specific configurations
 interface FrameworkConfig {
   type: "vite" | "next" | "node" | "python";
   port: number;
@@ -17,7 +20,6 @@ export const buildDockerImageWithEnv = async (
   imageTag: string,
   envVars: Array<{ key: string; value: string }>,
 ) => {
-  // Build args for Docker build (these become build-time env vars)
   const buildArgs = envVars.reduce((args, env) => {
     return [...args, "--build-arg", `${env.key}=${env.value}`];
   }, [] as string[]);
@@ -36,15 +38,11 @@ const generateDockerfileWithEnv = (
 ): string => {
   if (envVars.length === 0) return baseDockerfile;
 
-  // Generate ARG declarations for build-time
   const buildArgs = envVars.map((env) => `ARG ${env.key}`).join("\n");
-
-  // Generate ENV exports for runtime (these become available in the container)
   const envExports = envVars
     .map((env) => `ENV ${env.key}=${env.key}`)
     .join("\n");
 
-  // Insert ARGs after FROM, and ENVs after ARGs
   const lines = baseDockerfile.split("\n");
   const fromIndex = lines.findIndex((line) => line.startsWith("FROM"));
 
@@ -55,11 +53,32 @@ const generateDockerfileWithEnv = (
   return lines.join("\n");
 };
 
+// Helper to add .env cleanup to any Dockerfile
+const addEnvCleanup = (dockerfile: string): string => {
+  const cleanupLines = `
+# Remove any .env files to prevent sourcing/evaluation issues
+RUN rm -f .env .env.production .env.local .env.* 2>/dev/null || true
+`;
+
+  // Insert after the last FROM or WORKDIR
+  const lines = dockerfile.split("\n");
+  let insertIndex = lines.length - 1;
+
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (lines[i].startsWith("CMD") || lines[i].startsWith("ENTRYPOINT")) {
+      insertIndex = i;
+      break;
+    }
+  }
+
+  lines.splice(insertIndex, 0, cleanupLines);
+  return lines.join("\n");
+};
+
 const getFrameworkConfig = async (
   repoDir: string,
   envVars: Array<{ key: string; value: string }> = [],
 ): Promise<FrameworkConfig> => {
-  // Check for package.json (Node.js projects)
   const packageJsonPath = path.join(repoDir, "package.json");
   let packageJson: any = null;
 
@@ -67,10 +86,9 @@ const getFrameworkConfig = async (
     const content = await fs.readFile(packageJsonPath, "utf-8");
     packageJson = JSON.parse(content);
   } catch {
-    // No package.json found
+    // No package.json
   }
 
-  // Check for Python project files
   const hasRequirementsTxt = await fs
     .access(path.join(repoDir, "requirements.txt"))
     .then(() => true)
@@ -90,93 +108,113 @@ const getFrameworkConfig = async (
   const isPython =
     hasRequirementsTxt || hasSetupPy || hasPipfile || hasPyprojectToml;
 
-  // Check for Vite
   const hasVite =
     packageJson?.devDependencies?.vite || packageJson?.dependencies?.vite;
-
-  // Check for Next.js
   const hasNext = packageJson?.dependencies?.next;
-
-  // Check for Express
   const hasExpress = packageJson?.dependencies?.express;
 
   let baseConfig: FrameworkConfig;
 
-  // Vite configuration
+  // ── Vite (SPA / static) ───────────────────────────────────────────────────
   if (hasVite) {
     baseConfig = {
-      port: 5173,
+      port: 3000,
       type: "vite",
-      dockerfile: `FROM node:20-alpine
+      dockerfile: addEnvCleanup(`FROM node:20-alpine AS builder
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci || npm install
+RUN npm ci
 COPY . .
-RUN npm run build || true
-EXPOSE 5173
+RUN npm run build
+
+FROM node:20-alpine AS runner
+WORKDIR /app
+RUN npm install -g serve
+COPY --from=builder /app/dist ./dist
+EXPOSE 3000
+ENV PORT=3000
 ENV HOST=0.0.0.0
-ENV PORT=5173
-CMD ["sh", "-c", "npm run dev -- --host 0.0.0.0 --port 5173 || npm run preview -- --host 0.0.0.0 --port 5173"]
-`,
+CMD ["serve", "-s", "dist", "-l", "3000"]
+`),
       buildCommand: "npm run build",
-      startCommand: "npm run dev -- --host 0.0.0.0 --port 5173",
+      startCommand: "serve -s dist -l 3000",
       healthCheckPath: "/",
     };
   }
-  // Next.js configuration
+
+  // ── Next.js (SSR / static) ────────────────────────────────────────────────
   else if (hasNext) {
     baseConfig = {
       port: 3000,
       type: "next",
-      dockerfile: `FROM node:20-alpine
+      dockerfile: addEnvCleanup(`FROM node:20-alpine AS builder
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci || npm install
+RUN npm ci
 COPY . .
 RUN npm run build
-EXPOSE 3000
-ENV HOST=0.0.0.0
+
+FROM node:20-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
 ENV PORT=3000
-CMD ["sh", "-c", "npm run start -- -H 0.0.0.0 -p 3000 || npm run dev -- -H 0.0.0.0 -p 3000"]
-`,
+ENV HOSTNAME=0.0.0.0
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/public ./public
+COPY --from=builder /app/package*.json ./
+COPY --from=builder /app/node_modules ./node_modules
+EXPOSE 3000
+CMD ["node_modules/.bin/next", "start", "-H", "0.0.0.0", "-p", "3000"]
+`),
       buildCommand: "npm run build",
-      startCommand: "npm start",
-      healthCheckPath: "/api/health",
+      startCommand: "next start -H 0.0.0.0 -p 3000",
+      healthCheckPath: "/",
     };
   }
-  // Express/Node.js configuration
-  else if (hasExpress || packageJson) {
-    // Detect if it has a start script
-    const hasStartScript = packageJson?.scripts?.start;
-    const hasDevScript = packageJson?.scripts?.dev;
 
-    let startCommand = "node server.js";
-    if (hasStartScript) startCommand = "npm start";
-    else if (hasDevScript) startCommand = "npm run dev";
-    else if (packageJson?.main) startCommand = `node ${packageJson.main}`;
+  // ── Express / generic Node with socat proxy ────────────────────────────────
+  else if (hasExpress || packageJson) {
+    const hasStartScript = !!packageJson?.scripts?.start;
+    const hasBuildScript = !!packageJson?.scripts?.build;
+
+    const startCmd = hasStartScript
+      ? "npm start"
+      : packageJson?.main
+        ? `node ${packageJson.main}`
+        : "node index.js";
+
+    const buildStep = hasBuildScript ? "RUN npm run build" : "# no build step";
 
     baseConfig = {
       port: 3000,
       type: "node",
-      dockerfile: `FROM node:20-alpine
+      dockerfile: `FROM node:20-alpine AS builder
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci || npm install
+RUN npm ci
 COPY . .
-RUN npm run build || true
-EXPOSE 3000
+${buildStep}
+
+FROM node:20-alpine AS runner
+WORKDIR /app
+RUN apk add --no-cache socat
+COPY --from=builder /app ./
+ENV NODE_ENV=production
 ENV PORT=3000
-ENV HOST=0.0.0.0
-CMD ["sh", "-c", "${startCommand}"]
+EXPOSE 3000
+
+# Run user's app in background (may bind to 127.0.0.1)
+# socat proxies external traffic to the app
+CMD sh -c "(${startCmd}) & sleep 5 && socat TCP-LISTEN:3000,fork,reuseaddr TCP:127.0.0.1:3000"
 `,
-      buildCommand: packageJson?.scripts?.build || "echo 'No build step'",
-      startCommand: startCommand,
-      healthCheckPath: "/health",
+      buildCommand: hasBuildScript ? "npm run build" : "",
+      startCommand: startCmd,
+      healthCheckPath: "/",
     };
   }
-  // Python configuration
+
+  // ── Python ────────────────────────────────────────────────────────────────
   else if (isPython) {
-    // Detect framework
     const hasFlask = await fs
       .access(path.join(repoDir, "app.py"))
       .then(() => true)
@@ -190,32 +228,27 @@ CMD ["sh", "-c", "${startCommand}"]
       .then(() => true)
       .catch(() => false);
 
-    let dockerfile = `FROM python:3.11-slim
+    let dockerfile = addEnvCleanup(`FROM python:3.11-slim
 WORKDIR /app
-
-# Install dependencies
 COPY requirements.txt ./
-RUN pip install --no-cache-dir -r requirements.txt || true
-
+RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
-
 EXPOSE 8000
 ENV PORT=8000
-`;
+ENV HOST=0.0.0.0
+`);
 
     let startCommand = "";
 
     if (hasFlask) {
       dockerfile += `ENV FLASK_APP=app.py
-ENV FLASK_RUN_HOST=0.0.0.0
-ENV FLASK_RUN_PORT=8000
-CMD ["flask", "run", "--host=0.0.0.0", "--port=8000"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "app:app"]
 `;
-      startCommand = "flask run --host=0.0.0.0 --port=8000";
+      startCommand = "gunicorn --bind 0.0.0.0:8000 app:app";
     } else if (hasDjango) {
-      dockerfile += `CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+      dockerfile += `CMD ["gunicorn", "--bind", "0.0.0.0:8000", "wsgi:application"]
 `;
-      startCommand = "python manage.py runserver 0.0.0.0:8000";
+      startCommand = "gunicorn --bind 0.0.0.0:8000 wsgi:application";
     } else if (hasFastAPI) {
       dockerfile += `CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 `;
@@ -230,32 +263,37 @@ CMD ["flask", "run", "--host=0.0.0.0", "--port=8000"]
       port: 8000,
       type: "python",
       dockerfile,
-      buildCommand: "pip install -r requirements.txt || true",
+      buildCommand: "pip install -r requirements.txt",
       startCommand,
       healthCheckPath: "/",
     };
   }
-  // Default Node.js fallback
+
+  // ── Default fallback ──────────────────────────────────────────────────────
   else {
     baseConfig = {
       port: 3000,
       type: "node",
-      dockerfile: `FROM node:20-alpine
+      dockerfile: addEnvCleanup(`FROM node:20-alpine
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci || npm install
+RUN npm ci
 COPY . .
 RUN npm run build || true
 EXPOSE 3000
+ENV PORT=3000
+ENV HOST=0.0.0.0
+ENV HOSTNAME=0.0.0.0
+ENV NODE_ENV=production
 CMD ["npm", "start"]
-`,
+`),
       buildCommand: "npm run build || true",
       startCommand: "npm start",
       healthCheckPath: "/",
     };
   }
 
-  // Inject environment variables into Dockerfile if any exist
+  // Inject env vars into Dockerfile if needed
   if (envVars.length > 0) {
     baseConfig.dockerfile = generateDockerfileWithEnv(
       baseConfig.dockerfile,
@@ -277,15 +315,12 @@ export const ensureDockerfile = async (
   const dockerFilePath = path.join(repoDir, "Dockerfile");
 
   try {
-    // Check if Dockerfile already exists
     await fs.access(dockerFilePath);
-    return; // Use existing Dockerfile
+    return; // Use the repo's own Dockerfile
   } catch {
-    // Generate framework-specific Dockerfile with env vars
     const config = await getFrameworkConfig(repoDir, envVars);
     await fs.writeFile(dockerFilePath, config.dockerfile, "utf-8");
 
-    // Log what was detected
     console.log(`Generated Dockerfile for ${repoDir}:`, {
       port: config.port,
       startCommand: config.startCommand,
@@ -311,20 +346,17 @@ export const runDockerContainer = async (params: {
   containerName: string;
   hostPort: number;
   containerPort?: number;
-  envVars?: Array<{ key: string; value: string }>; // Add env vars parameter
+  envVars?: Array<{ key: string; value: string }>;
 }) => {
-  // Detect the framework to get the correct container port
   let containerPort = params.containerPort || 3000;
 
   try {
     const config = await getFrameworkConfig(params.repoDir);
     containerPort = config.port;
   } catch {
-    // Use default or provided port
     containerPort = params.containerPort || 3000;
   }
 
-  // Build the docker run command with environment variables
   const dockerArgs = [
     "run",
     "-d",
@@ -332,16 +364,22 @@ export const runDockerContainer = async (params: {
     `${params.hostPort}:${containerPort}`,
     "--name",
     params.containerName,
+    "--restart",
+    "unless-stopped",
   ];
 
-  // Add environment variables as -e flags
   if (params.envVars && params.envVars.length > 0) {
     for (const env of params.envVars) {
+      // ✅ CORRECT: Use env.value, not env.key
       dockerArgs.push("-e", `${env.key}=${env.value}`);
+      console.log(
+        `[docker.service] Passing env: ${env.key}=${env.value.substring(0, 20)}...`,
+      );
     }
   }
 
   dockerArgs.push(params.imageTag);
+  console.log("[docker.service] Full docker command:", dockerArgs.join(" "));
 
   const { stdout } = await runRepoCommand(
     params.repoDir,
@@ -361,7 +399,7 @@ export const stopAndRemoveContainer = async (containerIdOrName: string) => {
       30000,
     );
   } catch {
-    // no-op
+    // no-op — container may already be gone
   }
 };
 

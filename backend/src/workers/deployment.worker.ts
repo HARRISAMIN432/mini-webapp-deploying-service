@@ -1,3 +1,17 @@
+/**
+ * deployment.worker.ts  (Phase 4 — subdomain routing)
+ *
+ * Changes vs Phase 3:
+ *  1. After container passes health check, derive a subdomain from the project
+ *     name and register the route with nginx.service.
+ *  2. publicUrl is now  http://<subdomain>.localhost  instead of
+ *     http://localhost:<port>.
+ *  3. On stop / fail, unregisterRoute() removes the nginx entry.
+ *  4. Deployment model now stores `subdomain` (see deployment.model.ts patch).
+ *
+ * Everything else (clone → build → docker run → health check) is unchanged.
+ */
+
 import dotenv from "dotenv";
 dotenv.config({ quiet: true });
 import path from "path";
@@ -33,6 +47,14 @@ import {
   getFrameworkInfo,
   FrameworkConfig,
 } from "../services/docker.service";
+import {
+  registerRoute,
+  unregisterRoute,
+  toSubdomain,
+  buildPublicUrl,
+} from "../services/nginx.service";
+
+// ─── Utilities ────────────────────────────────────────────────────────────────
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -56,10 +78,6 @@ const resolveProjectRootDir = (
   return resolved;
 };
 
-/**
- * Fetch the last N lines of docker container logs (both stdout + stderr).
- * Returns an empty string if the container doesn't exist or docker fails.
- */
 const getContainerLogs = async (
   containerId: string,
   tailLines = 100,
@@ -75,9 +93,6 @@ const getContainerLogs = async (
   }
 };
 
-/**
- * Inspect a container and return its current state (running, exited, etc.)
- */
 const getContainerState = async (
   containerId: string,
 ): Promise<string | null> => {
@@ -92,31 +107,22 @@ const getContainerState = async (
   }
 };
 
-const debugLog = (deploymentId: string, message: string, data?: any) => {
-  const timestamp = new Date().toISOString();
-  console.log(`[${timestamp}] [WORKER] [${deploymentId.slice(-8)}] ${message}`);
+const debugLog = (deploymentId: string, message: string, data?: unknown) => {
+  const ts = new Date().toISOString();
+  console.log(`[${ts}] [WORKER] [${deploymentId.slice(-8)}] ${message}`);
   if (data) {
     console.log(
-      `[${timestamp}] [WORKER] [${deploymentId.slice(-8)}] DATA:`,
+      `[${ts}] [WORKER] [${deploymentId.slice(-8)}] DATA:`,
       typeof data === "object" ? JSON.stringify(data, null, 2) : data,
     );
   }
 };
 
-/**
- * Clean up existing container with the same name (idempotent operation)
- */
 const cleanupExistingContainer = async (
   containerName: string,
   deploymentId: string,
 ): Promise<void> => {
   try {
-    debugLog(
-      deploymentId,
-      `🧹 Checking for existing container: ${containerName}`,
-    );
-
-    // Check if container exists
     const { stdout } = await runRepoCommand(
       process.cwd(),
       "docker",
@@ -132,23 +138,18 @@ const cleanupExistingContainer = async (
     ).catch(() => ({ stdout: "" }));
 
     if (stdout.trim()) {
-      debugLog(deploymentId, `🗑️ Found existing container, removing...`);
       await stopAndRemoveContainer(containerName);
       await appendDeploymentLog(
         deploymentId,
         `✓ Removed stale container: ${containerName}`,
       );
-    } else {
-      debugLog(deploymentId, `✅ No existing container found`);
     }
-  } catch (error) {
-    debugLog(
-      deploymentId,
-      `⚠️ Error checking for existing container (non-critical)`,
-      error,
-    );
+  } catch {
+    // Non-critical — log and continue
   }
 };
+
+// ─── Core deployment logic ────────────────────────────────────────────────────
 
 const processDeployment = async (payload: {
   deploymentId: string;
@@ -161,10 +162,6 @@ const processDeployment = async (payload: {
   const project = await Project.findById(payload.projectId);
 
   if (!deployment || !project) {
-    debugLog(payload.deploymentId, "❌ Deployment or project not found", {
-      deploymentExists: !!deployment,
-      projectExists: !!project,
-    });
     if (deployment) {
       await failDeployment(
         payload.deploymentId,
@@ -174,18 +171,16 @@ const processDeployment = async (payload: {
     return;
   }
 
-  // Get environment variables from project
+  if (deployment.ownerId.toString() !== payload.ownerId) {
+    await failDeployment(
+      payload.deploymentId,
+      "Unauthorized deployment payload",
+    );
+    return;
+  }
+
   const envVars = project.envVars || [];
 
-  debugLog(payload.deploymentId, "✅ Found deployment and project", {
-    deploymentStatus: deployment.status,
-    projectName: project.name,
-    repoUrl: deployment.repoUrl,
-    envVarsCount: envVars.length,
-    envVarKeys: envVars.map((e) => e.key),
-  });
-
-  // Log environment variables count to deployment log
   if (envVars.length > 0) {
     await appendDeploymentLog(
       payload.deploymentId,
@@ -198,17 +193,14 @@ const processDeployment = async (payload: {
     );
   }
 
-  if (deployment.ownerId.toString() !== payload.ownerId) {
-    debugLog(payload.deploymentId, "❌ Unauthorized deployment payload", {
-      expectedOwner: payload.ownerId,
-      actualOwner: deployment.ownerId.toString(),
-    });
-    await failDeployment(
-      payload.deploymentId,
-      "Unauthorized deployment payload",
-    );
-    return;
-  }
+  // ── Derive subdomain early so logs can reference it ──────────────────────
+  const subdomain = toSubdomain(project.name);
+  const publicUrl = buildPublicUrl(subdomain);
+
+  await appendDeploymentLog(
+    payload.deploymentId,
+    `🌐 Public URL will be: ${publicUrl}`,
+  );
 
   const attemptId = crypto.randomUUID();
   const workDir = path.join(
@@ -216,19 +208,13 @@ const processDeployment = async (payload: {
     `${payload.deploymentId}-${attemptId}`,
   );
   const imageTag = `app-${payload.deploymentId}`.toLowerCase();
-  // Use unique container name with timestamp to avoid conflicts
   const containerName =
     `deploy-${payload.deploymentId}-${Date.now()}`.toLowerCase();
   let containerId: string | null = null;
   let frameworkConfig: FrameworkConfig | null = null;
 
-  debugLog(payload.deploymentId, "📁 Created working directory config", {
-    workDir,
-    imageTag,
-    containerName,
-  });
-
   try {
+    // ── CLONE ───────────────────────────────────────────────────────────────
     await setDeploymentStatus(payload.deploymentId, "cloning", {
       errorMessage: null,
     });
@@ -238,12 +224,6 @@ const processDeployment = async (payload: {
     );
     await appendDeploymentLog(payload.deploymentId, "📦 Cloning repository...");
 
-    debugLog(payload.deploymentId, "📦 Cloning repository", {
-      repoUrl: deployment.repoUrl,
-      branch: deployment.branch,
-      targetDir: workDir,
-    });
-
     await cloneRepository({
       repoUrl: deployment.repoUrl,
       branch: deployment.branch,
@@ -251,8 +231,6 @@ const processDeployment = async (payload: {
     });
 
     const commitHash = await getHeadCommitHash(workDir);
-    debugLog(payload.deploymentId, "📝 Got commit hash", { commitHash });
-
     await setDeploymentStatus(payload.deploymentId, "cloning", { commitHash });
     await appendDeploymentLog(
       payload.deploymentId,
@@ -260,18 +238,15 @@ const processDeployment = async (payload: {
     );
 
     const appDir = resolveProjectRootDir(workDir, project.rootDirectory);
-    debugLog(payload.deploymentId, "📂 Resolved app directory", { appDir });
 
-    // Detect framework and get configuration (pass env vars for Dockerfile generation)
+    // ── DETECT FRAMEWORK ────────────────────────────────────────────────────
     frameworkConfig = await getFrameworkInfo(appDir, envVars);
-    debugLog(payload.deploymentId, "🔍 Detected framework", frameworkConfig);
-
     await appendDeploymentLog(
       payload.deploymentId,
       `🔍 Detected ${frameworkConfig.type} project (container port: ${frameworkConfig.port})`,
     );
 
-    // Check for package.json (Node.js) or Python files
+    // ── VALIDATE project type ────────────────────────────────────────────────
     const hasPackageJson = await fs
       .access(path.join(appDir, "package.json"))
       .then(() => true)
@@ -286,11 +261,6 @@ const processDeployment = async (payload: {
         .then(() => true)
         .catch(() => false));
 
-    debugLog(payload.deploymentId, "📋 Project type detection", {
-      hasPackageJson,
-      hasPythonFiles,
-    });
-
     if (!hasPackageJson && !hasPythonFiles) {
       await failDeployment(
         payload.deploymentId,
@@ -299,9 +269,8 @@ const processDeployment = async (payload: {
       return;
     }
 
+    // ── INSTALL ─────────────────────────────────────────────────────────────
     await setDeploymentStatus(payload.deploymentId, "building");
-
-    // Determine install command
     let installCommand = project.installCommand;
     if (!installCommand && frameworkConfig) {
       installCommand =
@@ -309,10 +278,6 @@ const processDeployment = async (payload: {
           ? "pip install -r requirements.txt"
           : "npm install";
     }
-
-    debugLog(payload.deploymentId, "📥 Installing dependencies", {
-      installCommand,
-    });
 
     await appendDeploymentLog(
       payload.deploymentId,
@@ -331,34 +296,22 @@ const processDeployment = async (payload: {
       600000,
     );
     if (installRes.stdout.trim()) {
-      const installLines = installRes.stdout.trim().split("\n");
-      for (const line of installLines.slice(-50)) {
-        if (line.trim()) {
-          await appendDeploymentLog(payload.deploymentId, line);
-        }
+      for (const line of installRes.stdout.trim().split("\n").slice(-50)) {
+        if (line.trim()) await appendDeploymentLog(payload.deploymentId, line);
       }
     }
     await appendDeploymentLog(payload.deploymentId, "✓ Dependencies installed");
 
-    // Handle build step for Node.js projects
+    // ── BUILD (Node.js only) ─────────────────────────────────────────────────
     if (hasPackageJson) {
-      const pkgJsonRaw = await fs.readFile(
-        path.join(appDir, "package.json"),
-        "utf-8",
-      );
-      const pkgJson = JSON.parse(pkgJsonRaw) as {
-        scripts?: Record<string, string>;
-      };
+      const pkgJson = JSON.parse(
+        await fs.readFile(path.join(appDir, "package.json"), "utf-8"),
+      ) as { scripts?: Record<string, string> };
 
       let buildCommand = project.buildCommand;
       if (!buildCommand && pkgJson.scripts?.build) {
         buildCommand = "npm run build";
       }
-
-      debugLog(payload.deploymentId, "🔨 Build step", {
-        buildCommand,
-        hasBuildScript: !!pkgJson.scripts?.build,
-      });
 
       if (buildCommand && pkgJson.scripts?.build) {
         await appendDeploymentLog(payload.deploymentId, "🔨 Running build...");
@@ -372,11 +325,9 @@ const processDeployment = async (payload: {
           600000,
         );
         if (buildRes.stdout.trim()) {
-          const buildLines = buildRes.stdout.trim().split("\n");
-          for (const line of buildLines.slice(-50)) {
-            if (line.trim()) {
+          for (const line of buildRes.stdout.trim().split("\n").slice(-50)) {
+            if (line.trim())
               await appendDeploymentLog(payload.deploymentId, line);
-            }
           }
         }
         await appendDeploymentLog(payload.deploymentId, "✓ Build complete");
@@ -393,32 +344,19 @@ const processDeployment = async (payload: {
       );
     }
 
+    // ── START CONTAINER ─────────────────────────────────────────────────────
     await setDeploymentStatus(payload.deploymentId, "starting");
 
-    debugLog(payload.deploymentId, "🔌 Finding available port");
     const port = await findAvailablePort(5000, 9000);
-    debugLog(payload.deploymentId, "🔌 Port found", { port });
-
     await appendDeploymentLog(
       payload.deploymentId,
       `🔌 Assigned host port ${port} → container port ${frameworkConfig?.port || 3000}`,
     );
 
     await ensureDockerAvailable();
-
-    // Clean up any existing container before proceeding
     await cleanupExistingContainer(containerName, payload.deploymentId);
-
-    // Pass envVars to ensureDockerfile
     await ensureDockerfile(appDir, envVars);
 
-    debugLog(
-      payload.deploymentId,
-      "🐳 Building Docker image with environment variables",
-      {
-        envVarsCount: envVars.length,
-      },
-    );
     await appendDeploymentLog(
       payload.deploymentId,
       `🐳 Building Docker image${envVars.length > 0 ? ` with ${envVars.length} build args...` : "..."}`,
@@ -426,14 +364,12 @@ const processDeployment = async (payload: {
 
     try {
       await buildDockerImageWithEnv(appDir, imageTag, envVars);
-      debugLog(payload.deploymentId, "✅ Docker image built successfully");
       await appendDeploymentLog(payload.deploymentId, "✓ Docker image built");
     } catch (dockerBuildErr) {
       const msg =
         dockerBuildErr instanceof Error
           ? dockerBuildErr.message
           : String(dockerBuildErr);
-      debugLog(payload.deploymentId, "❌ Docker build failed", { error: msg });
       await appendDeploymentLog(
         payload.deploymentId,
         `❌ Docker build failed:\n${msg}`,
@@ -442,14 +378,6 @@ const processDeployment = async (payload: {
     }
 
     await appendDeploymentLog(payload.deploymentId, "▶ Starting container...");
-    debugLog(payload.deploymentId, "▶ Starting Docker container", {
-      repoDir: appDir,
-      imageTag,
-      containerName,
-      hostPort: port,
-      containerPort: frameworkConfig?.port,
-      envVarsCount: envVars.length,
-    });
 
     try {
       containerId = await runDockerContainer({
@@ -460,24 +388,13 @@ const processDeployment = async (payload: {
         containerPort: frameworkConfig?.port,
         envVars,
       });
-      debugLog(payload.deploymentId, "✅ Container started", { containerId });
 
-      if (envVars.length > 0) {
-        await appendDeploymentLog(
-          payload.deploymentId,
-          `✓ Container started with ${envVars.length} runtime environment variables`,
-        );
-      } else {
-        await appendDeploymentLog(
-          payload.deploymentId,
-          `✓ Container started (id: ${containerId?.slice(0, 12)})`,
-        );
-      }
+      await appendDeploymentLog(
+        payload.deploymentId,
+        `✓ Container started (id: ${containerId?.slice(0, 12)})`,
+      );
     } catch (runErr) {
       const msg = runErr instanceof Error ? runErr.message : String(runErr);
-      debugLog(payload.deploymentId, "❌ Failed to start container", {
-        error: msg,
-      });
       await appendDeploymentLog(
         payload.deploymentId,
         `❌ Failed to start container: ${msg}`,
@@ -485,21 +402,17 @@ const processDeployment = async (payload: {
       throw runErr;
     }
 
-    const publicUrl = `http://localhost:${port}`;
+    // ── HEALTH CHECK ────────────────────────────────────────────────────────
     const healthPath = frameworkConfig?.healthCheckPath || "/";
-
-    debugLog(payload.deploymentId, "⏳ Waiting for health check", {
-      publicUrl,
-      healthPath,
-    });
+    const healthUrl = `http://localhost:${port}${healthPath}`;
 
     await appendDeploymentLog(
       payload.deploymentId,
-      `⏳ Waiting for app to be healthy at ${publicUrl}${healthPath}…`,
+      `⏳ Waiting for app to be healthy at ${healthUrl}…`,
     );
 
     const { ok: healthy, lastError } = await waitForHealth(
-      `${publicUrl}${healthPath}`,
+      healthUrl,
       containerId!,
       payload.deploymentId,
       40_000,
@@ -520,11 +433,6 @@ const processDeployment = async (payload: {
           "Tip: Make sure your app binds to 0.0.0.0 (not 127.0.0.1/localhost) on the expected port.";
       }
 
-      debugLog(payload.deploymentId, "❌ Health check failed", {
-        lastError,
-        tips,
-      });
-
       await failDeployment(
         payload.deploymentId,
         `Health check failed (${lastError}). ${tips}`,
@@ -533,12 +441,20 @@ const processDeployment = async (payload: {
       return;
     }
 
-    debugLog(
+    // ── REGISTER NGINX ROUTE ────────────────────────────────────────────────
+    await appendDeploymentLog(
       payload.deploymentId,
-      "✅ Health check passed, deployment successful",
+      `🌐 Registering subdomain: ${subdomain}.localhost → port ${port}`,
     );
 
-    await appendDeploymentLog(payload.deploymentId, "✅ Application is live!");
+    await registerRoute({ subdomain, hostPort: port });
+
+    await appendDeploymentLog(
+      payload.deploymentId,
+      `✅ Application is live at ${publicUrl}`,
+    );
+
+    // ── MARK RUNNING ────────────────────────────────────────────────────────
     await setDeploymentStatus(payload.deploymentId, "running", {
       containerId,
       publicUrl,
@@ -548,24 +464,22 @@ const processDeployment = async (payload: {
       errorMessage: null,
     });
 
-    // SUCCESS: clean up work directory
+    // Persist subdomain to deployment document
+    await Deployment.findByIdAndUpdate(payload.deploymentId, {
+      $set: { subdomain },
+    });
+
     await cleanupDirectory(workDir);
-    debugLog(payload.deploymentId, "🧹 Cleaned up working directory");
     return;
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unexpected worker error";
-    debugLog(payload.deploymentId, "💥 Deployment failed with error", {
-      message,
-      error,
-    });
     await failDeployment(payload.deploymentId, message, containerId);
   } finally {
     try {
       await cleanupDirectory(workDir);
-      debugLog(payload.deploymentId, "🧹 Final cleanup complete");
-    } catch (err) {
-      debugLog(payload.deploymentId, "⚠️ Cleanup failed", err);
+    } catch {
+      // best-effort
     }
     await Project.findByIdAndUpdate(payload.projectId, {
       activeDeploymentId: null,
@@ -573,15 +487,8 @@ const processDeployment = async (payload: {
   }
 };
 
-/**
- * Wait for a container to respond with HTTP 2xx on `url`.
- *
- * While waiting, streams container logs in real-time to the deployment
- * terminal so users see exactly why the container is failing/starting.
- *
- * Uses 127.0.0.1 explicitly — on Windows, Node may resolve "localhost" as
- * the IPv6 loopback (::1) which Docker Desktop does not bind by default.
- */
+// ─── Health check ─────────────────────────────────────────────────────────────
+
 const waitForHealth = async (
   url: string,
   containerId: string,
@@ -595,35 +502,29 @@ const waitForHealth = async (
   let lastLogFlushAt = 0;
 
   while (Date.now() - started < timeoutMs) {
-    // ── 1. Stream any new container logs to the terminal ──────────────────
     const now = Date.now();
     if (now - lastLogFlushAt > 3000) {
       const rawLogs = await getContainerLogs(containerId, 200);
       if (rawLogs) {
         const lines = rawLogs.split("\n");
         const newLines = lines.slice(lastLogOffset);
-        if (newLines.length > 0) {
-          for (const line of newLines) {
-            if (line.trim()) {
-              await appendDeploymentLog(deploymentId, `[container] ${line}`);
-            }
+        for (const line of newLines) {
+          if (line.trim()) {
+            await appendDeploymentLog(deploymentId, `[container] ${line}`);
           }
-          lastLogOffset = lines.length;
         }
+        lastLogOffset = lines.length;
       }
       lastLogFlushAt = now;
     }
 
-    // ── 2. Check the container is still alive ────────────────────────────
     const state = await getContainerState(containerId);
     if (state === "exited" || state === "dead") {
       lastError = `Container exited prematurely (state: ${state})`;
-
       const finalLogs = await getContainerLogs(containerId, 300);
       if (finalLogs) {
         const lines = finalLogs.split("\n");
-        const newLines = lines.slice(lastLogOffset);
-        for (const line of newLines) {
+        for (const line of lines.slice(lastLogOffset)) {
           if (line.trim()) {
             await appendDeploymentLog(deploymentId, `[container] ${line}`);
           }
@@ -632,7 +533,6 @@ const waitForHealth = async (
       break;
     }
 
-    // ── 3. HTTP probe ────────────────────────────────────────────────────
     try {
       const response = await fetch(resolvedUrl, {
         signal: AbortSignal.timeout(4000),
@@ -649,6 +549,8 @@ const waitForHealth = async (
   return { ok: false, lastError };
 };
 
+// ─── Failure handler ──────────────────────────────────────────────────────────
+
 const failDeployment = async (
   deploymentId: string,
   message: string,
@@ -661,8 +563,7 @@ const failDeployment = async (
         deploymentId,
         `──── Container output (last 300 lines) ────`,
       );
-      const lines = finalLogs.split("\n").filter((l) => l.trim());
-      for (const line of lines) {
+      for (const line of finalLogs.split("\n").filter((l) => l.trim())) {
         await appendDeploymentLog(deploymentId, `[container] ${line}`);
       }
       await appendDeploymentLog(
@@ -671,6 +572,22 @@ const failDeployment = async (
       );
     }
     await stopAndRemoveContainer(containerId);
+  }
+
+  // Try to clean up the nginx route if we have a subdomain
+  try {
+    const dep = await Deployment.findById(deploymentId).populate(
+      "projectId",
+      "name",
+    );
+    if (dep) {
+      const projectName = (dep.projectId as any)?.name;
+      if (projectName) {
+        await unregisterRoute(toSubdomain(projectName));
+      }
+    }
+  } catch {
+    // best-effort
   }
 
   await appendDeploymentLog(deploymentId, `❌ Failed: ${message}`);
@@ -686,6 +603,8 @@ const failDeployment = async (
     });
   }
 };
+
+// ─── Worker bootstrap ─────────────────────────────────────────────────────────
 
 const startWorker = async () => {
   await connectDB();
@@ -706,7 +625,7 @@ const startWorker = async () => {
     });
   });
 
-  logger.info("Deployment worker started");
+  logger.info("Deployment worker started (Phase 4 — subdomain routing)");
 };
 
 startWorker().catch((err) => {
