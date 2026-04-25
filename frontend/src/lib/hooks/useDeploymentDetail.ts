@@ -62,17 +62,26 @@ export function useDeploymentDetail({
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [replayDone, setReplayDone] = useState(false);
 
+  // FIX: Read token synchronously from localStorage on first render
+  // instead of using useEffect (which runs after render, causing connect()
+  // to fire with null token and never reconnect when it becomes available).
+  const [resolvedToken] = useState<string | null>(() => {
+    if (token) return token;
+    if (typeof window === "undefined") return null;
+    return localStorage.getItem("shipstack_access_token");
+  });
+
   const esRef = useRef<EventSource | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const attemptsRef = useRef(0);
   const mountedRef = useRef(true);
 
   const connect = useCallback(() => {
-    if (!token || !deploymentId) return;
+    if (!resolvedToken || !deploymentId) return;
 
     esRef.current?.close();
 
-    const url = `${streamBaseUrl}?token=${encodeURIComponent(token)}&deploymentId=${encodeURIComponent(deploymentId)}`;
+    const url = `${streamBaseUrl}?token=${encodeURIComponent(resolvedToken)}&deploymentId=${encodeURIComponent(deploymentId)}`;
     const es = new EventSource(url);
     esRef.current = es;
 
@@ -88,7 +97,6 @@ export function useDeploymentDetail({
       try {
         const entry = JSON.parse(e.data) as LogLine;
         setLines((prev) => {
-          // Deduplicate by id
           if (prev.some((l) => l.id === entry.id)) return prev;
           const next = [...prev, entry];
           return next.length > maxLines ? next.slice(-maxLines) : next;
@@ -135,7 +143,7 @@ export function useDeploymentDetail({
         if (mountedRef.current) connect();
       }, delay);
     };
-  }, [deploymentId, streamBaseUrl, token, maxLines]);
+  }, [deploymentId, streamBaseUrl, resolvedToken, maxLines]);
 
   useEffect(() => {
     mountedRef.current = true;

@@ -238,7 +238,7 @@ export function useDeploymentLogs({
             timestamp: new Date(d.createdAt),
             level: classifyLine(text),
             projectName:
-              typeof d.projectId === "string" ? d.projectId : d.projectId.name,
+              typeof d.projectId === "string" ? d.projectId : d.projectId?.name,
             deploymentId,
             text,
           }));
