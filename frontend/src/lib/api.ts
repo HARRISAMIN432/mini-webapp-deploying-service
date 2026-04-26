@@ -151,3 +151,173 @@ export function getOAuthStartUrl(
   const q = new URLSearchParams({ redirectTo });
   return `${baseUrl()}/api/auth/oauth/${provider}?${q}`;
 }
+
+/**
+ * lib/api.ts  (Phase 5 additions)
+ *
+ * Adds typed API helpers for all new Phase 5 endpoints.
+ * Drop these into the bottom of your existing api.ts.
+ */
+
+// ── Keep your existing apiRequest + ApiError at the top of the real file ──
+// This file shows only the NEW additions for Phase 5.
+
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+export interface ProjectDetails {
+  project: {
+    _id: string;
+    name: string;
+    repoUrl: string;
+    framework: string;
+    branch: string;
+    rootDirectory: string;
+    buildCommand: string;
+    installCommand: string;
+    startCommand: string;
+    autoDeploy: boolean;
+    trackedBranch: string;
+    activeDeploymentId: string | null;
+    createdAt: string;
+    updatedAt: string;
+  };
+  latestDeployment: DeploymentSummary | null;
+  domains: DomainEntry[];
+  envVarsCount: number;
+  deploymentCount: number;
+}
+
+export interface DeploymentSummary {
+  _id: string;
+  status: string;
+  publicUrl: string | null;
+  commitHash: string | null;
+  createdAt: string;
+  completedAt: string | null;
+  healthStatus: "healthy" | "unhealthy" | "unknown";
+  triggerSource: "manual" | "webhook" | "rollback" | "redeploy";
+  branch: string;
+  port: number | null;
+  startedAt: string | null;
+  errorMessage: string | null;
+}
+
+export interface DomainEntry {
+  subdomain: string;
+  url: string;
+  isPrimary: boolean;
+  port: number;
+}
+
+export interface MaskedEnvVar {
+  key: string;
+  maskedValue: string;
+}
+
+export interface ContainerMetrics {
+  available: boolean;
+  reason?: string;
+  cpuPercent?: number;
+  memUsedMb?: number;
+  memTotalMb?: number;
+  memPercent?: number;
+  netInputMb?: number;
+  netOutputMb?: number;
+  uptime?: string | null;
+  error?: string | null;
+  lastDeployAt?: string;
+  startedAt?: string | null;
+}
+
+export interface PaginatedDeployments {
+  deployments: DeploymentSummary[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+// ─── API helpers ──────────────────────────────────────────────────────────────
+
+export const projectApi = {
+  getDetails: (projectId: string) =>
+    apiRequest<ProjectDetails>(`/api/projects/${projectId}/details`),
+
+  updateSettings: (
+    projectId: string,
+    settings: Partial<{
+      name: string;
+      buildCommand: string;
+      startCommand: string;
+      installCommand: string;
+      rootDirectory: string;
+      branch: string;
+      autoDeploy: boolean;
+      trackedBranch: string;
+    }>,
+  ) =>
+    apiRequest<{ _id: string }>(`/api/projects/${projectId}/settings`, {
+      method: "PATCH",
+      body: JSON.stringify(settings),
+    }),
+
+  listDeployments: (projectId: string, page = 1, limit = 20) =>
+    apiRequest<PaginatedDeployments>(
+      `/api/projects/${projectId}/deployments?page=${page}&limit=${limit}`,
+    ),
+
+  redeploy: (projectId: string) =>
+    apiRequest<{ deploymentId: string; status: string }>(
+      `/api/projects/${projectId}/redeploy`,
+      { method: "POST" },
+    ),
+
+  rollback: (projectId: string, deploymentId: string) =>
+    apiRequest<{ deploymentId: string; status: string }>(
+      `/api/projects/${projectId}/rollback/${deploymentId}`,
+      { method: "POST" },
+    ),
+
+  getMetrics: (projectId: string) =>
+    apiRequest<ContainerMetrics>(`/api/projects/${projectId}/metrics`),
+
+  getDomains: (projectId: string) =>
+    apiRequest<{ defaultDomain: DomainEntry | null }>(
+      `/api/projects/${projectId}/domains`,
+    ),
+
+  deleteProject: (projectId: string) =>
+    apiRequest<null>(`/api/projects/${projectId}`, { method: "DELETE" }),
+
+  stopActiveDeployment: (deploymentId: string) =>
+    apiRequest<{ status: string }>(
+      `/api/projects/deployments/${deploymentId}/stop`,
+      { method: "POST" },
+    ),
+};
+
+export const envApi = {
+  list: (projectId: string) =>
+    apiRequest<MaskedEnvVar[]>(`/api/projects/${projectId}/env`),
+
+  add: (projectId: string, key: string, value: string) =>
+    apiRequest<MaskedEnvVar[]>(`/api/projects/${projectId}/env`, {
+      method: "POST",
+      body: JSON.stringify({ key, value }),
+    }),
+
+  update: (projectId: string, key: string, value: string) =>
+    apiRequest<MaskedEnvVar[]>(`/api/projects/${projectId}/env/${encodeURIComponent(key)}`, {
+      method: "PATCH",
+      body: JSON.stringify({ value }),
+    }),
+
+  delete: (projectId: string, key: string) =>
+    apiRequest<MaskedEnvVar[]>(
+      `/api/projects/${projectId}/env/${encodeURIComponent(key)}`,
+      { method: "DELETE" },
+    ),
+};
