@@ -1,21 +1,42 @@
+/**
+ * project.controller.ts  (Phase 5)
+ *
+ * New handlers:
+ *  - getProjectDetails
+ *  - updateProjectSettings
+ *  - listProjectDeployments
+ *  - redeployProject
+ *  - rollbackToDeployment
+ *  - getProjectMetrics
+ *  - getProjectDomains
+ *  - listEnvVars / addEnvVar / updateEnvVar / deleteEnvVar
+ */
+
 import { Request, Response } from "express";
 import type { AccessTokenPayload } from "../types";
-import { sendCreated, sendSuccess } from "../utils/response";
+import { sendCreated, sendSuccess, sendError } from "../utils/response";
 import * as projectService from "../services/project.service";
+import * as envService from "../services/env.service";
 import type {
   CreateProjectInput,
   UpdateProjectInput,
 } from "../validators/project.validators";
 
-const getUserId = (req: Request): string => {
-  const user = req.user as AccessTokenPayload;
-  return user.sub;
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+const getUserId = (req: Request): string =>
+  (req.user as AccessTokenPayload).sub;
+
+const getProjectId = (req: Request): string => {
+  const projectId = req.params.projectId;
+  // Handle both string and string[] cases
+  if (Array.isArray(projectId)) {
+    return projectId[0];
+  }
+  return projectId;
 };
 
-const getProjectId = (req: Request): string =>
-  Array.isArray(req.params.projectId)
-    ? req.params.projectId[0]
-    : req.params.projectId;
+// ─── Existing handlers ────────────────────────────────────────────────────────
 
 export const listProjects = async (req: Request, res: Response) => {
   const projects = await projectService.listProjects(getUserId(req));
@@ -23,12 +44,10 @@ export const listProjects = async (req: Request, res: Response) => {
 };
 
 export const createProject = async (req: Request, res: Response) => {
-  console.log("createProject called", req.body); // add this
   const project = await projectService.createProject(
     getUserId(req),
     req.body as CreateProjectInput,
   );
-  console.log("Project", project);
   sendCreated(res, project, "Project created successfully");
 };
 
@@ -66,11 +85,166 @@ export const createDeployment = async (req: Request, res: Response) => {
   );
   sendSuccess(
     res,
-    {
-      deploymentId: deployment._id.toString(),
-      status: deployment.status,
-    },
+    { deploymentId: deployment._id.toString(), status: deployment.status },
     "Deployment queued",
     201,
+  );
+};
+
+// ─── Phase 5: New handlers ────────────────────────────────────────────────────
+
+/** GET /api/projects/:projectId/details */
+export const getProjectDetails = async (req: Request, res: Response) => {
+  const details = await projectService.getProjectDetails(
+    getUserId(req),
+    getProjectId(req),
+  );
+  sendSuccess(res, details);
+};
+
+/** PATCH /api/projects/:projectId/settings */
+export const updateProjectSettings = async (req: Request, res: Response) => {
+  const project = await projectService.updateProjectSettings(
+    getUserId(req),
+    getProjectId(req),
+    req.body,
+  );
+  sendSuccess(res, project, "Settings updated");
+};
+
+/** GET /api/projects/:projectId/deployments */
+export const listProjectDeployments = async (req: Request, res: Response) => {
+  const page = parseInt(req.query.page as string) || 1;
+  const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
+  const result = await projectService.listProjectDeployments(
+    getUserId(req),
+    getProjectId(req),
+    page,
+    limit,
+  );
+  sendSuccess(res, result);
+};
+
+/** POST /api/projects/:projectId/redeploy */
+export const redeployProject = async (req: Request, res: Response) => {
+  const deployment = await projectService.redeployProject(
+    getUserId(req),
+    getProjectId(req),
+  );
+  sendSuccess(
+    res,
+    { deploymentId: deployment._id.toString(), status: deployment.status },
+    "Redeployment queued",
+    201,
+  );
+};
+
+/** POST /api/projects/:projectId/rollback/:deploymentId */
+export const rollbackToDeployment = async (req: Request, res: Response) => {
+  const targetId = req.params.deploymentId;
+  if (!targetId || Array.isArray(targetId)) {
+    return sendError(res, "deploymentId is required", "400", 400);
+  }
+
+  const deployment = await projectService.rollbackToDeployment(
+    getUserId(req),
+    getProjectId(req),
+    targetId,
+  );
+  sendSuccess(
+    res,
+    { deploymentId: deployment._id.toString(), status: deployment.status },
+    "Rollback queued",
+    201,
+  );
+};
+
+/** GET /api/projects/:projectId/metrics */
+export const getProjectMetrics = async (req: Request, res: Response) => {
+  const metrics = await projectService.getProjectMetrics(
+    getUserId(req),
+    getProjectId(req),
+  );
+  sendSuccess(res, metrics);
+};
+
+/** GET /api/projects/:projectId/domains */
+export const getProjectDomains = async (req: Request, res: Response) => {
+  const domains = await projectService.getProjectDomains(
+    getUserId(req),
+    getProjectId(req),
+  );
+  sendSuccess(res, domains);
+};
+
+// ─── Phase 5: Env Vars ───────────────────────────────────────────────────────
+
+/** GET /api/projects/:projectId/env */
+export const listEnvVars = async (req: Request, res: Response) => {
+  const vars = await envService.listEnvVars(getProjectId(req), getUserId(req));
+  sendSuccess(res, vars);
+};
+
+/** POST /api/projects/:projectId/env */
+export const addEnvVar = async (req: Request, res: Response) => {
+  const { key, value } = req.body;
+  if (!key) return sendError(res, "key is required", "400", 400);
+  if (value === undefined)
+    return sendError(res, "value is required", "400", 400);
+
+  const vars = await envService.addEnvVar(
+    getProjectId(req),
+    getUserId(req),
+    key,
+    value,
+  );
+  sendCreated(
+    res,
+    vars,
+    "Environment variable added. Redeploy to apply changes.",
+  );
+};
+
+/** PATCH /api/projects/:projectId/env/:key */
+export const updateEnvVar = async (req: Request, res: Response) => {
+  const { key } = req.params;
+  const { value } = req.body;
+
+  if (!key || Array.isArray(key)) {
+    return sendError(res, "Invalid key parameter", "400", 400);
+  }
+  if (value === undefined)
+    return sendError(res, "value is required", "400", 400);
+
+  const vars = await envService.updateEnvVar(
+    getProjectId(req),
+    getUserId(req),
+    key,
+    value,
+  );
+  sendSuccess(
+    res,
+    vars,
+    "Environment variable updated. Redeploy to apply changes.",
+  );
+};
+
+/** DELETE /api/projects/:projectId/env/:key */
+export const deleteEnvVar = async (req: Request, res: Response) => {
+  const { key } = req.params;
+
+  if (!key || Array.isArray(key)) {
+    return sendError(res, "Invalid key parameter", "400", 400);
+  }
+
+  const vars = await envService.deleteEnvVar(
+    getProjectId(req),
+    getUserId(req),
+    key,
+  );
+  sendSuccess(
+    res,
+    vars,
+    "Environment variable deleted. Redeploy to apply changes.",
   );
 };

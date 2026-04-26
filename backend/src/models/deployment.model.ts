@@ -1,10 +1,12 @@
 /**
- * deployment.model.ts  (Phase 4 patch)
+ * deployment.model.ts  (Phase 5)
  *
- * Added fields vs Phase 3:
- *   - subdomain: string | null  — the URL-safe subdomain assigned to this deployment
- *
- * Everything else is unchanged from Phase 3.
+ * Added fields vs Phase 4:
+ *   - healthStatus: "healthy" | "unhealthy" | "unknown"
+ *   - lastHealthCheckAt: Date
+ *   - consecutiveFailures: number
+ *   - triggerSource: "manual" | "webhook" | "rollback" | "redeploy"
+ *   - imageTag: string | null  — stored so rollback can reuse it
  */
 
 import { Model, Schema, Types, model } from "mongoose";
@@ -20,6 +22,8 @@ export const deploymentStatuses = [
 ] as const;
 
 export type DeploymentStatus = (typeof deploymentStatuses)[number];
+export type HealthStatus = "healthy" | "unhealthy" | "unknown";
+export type TriggerSource = "manual" | "webhook" | "rollback" | "redeploy";
 
 export interface IDeployment {
   _id: Types.ObjectId;
@@ -30,15 +34,20 @@ export interface IDeployment {
   branch: string;
   commitHash: string | null;
   logs: string[];
-  // ── Phase 4 additions ──────────────────────────────────────────────────────
-  subdomain: string | null; // e.g. "portfolio"
-  // ──────────────────────────────────────────────────────────────────────────
-  publicUrl: string | null; // e.g. "http://portfolio.localhost"
+  subdomain: string | null;
+  publicUrl: string | null;
   containerId: string | null;
+  imageTag: string | null; // Phase 5: stored for rollback reuse
   port: number | null;
   startedAt: Date | null;
   completedAt: Date | null;
   errorMessage: string | null;
+  // ── Phase 5 additions ──────────────────────────────────────────────────────
+  healthStatus: HealthStatus;
+  lastHealthCheckAt: Date | null;
+  consecutiveFailures: number;
+  triggerSource: TriggerSource;
+  // ──────────────────────────────────────────────────────────────────────────
   createdAt: Date;
   updatedAt: Date;
 }
@@ -78,16 +87,8 @@ const deploymentSchema = new Schema<IDeployment, IDeploymentModel>(
       default: "main",
       maxlength: [100, "Branch is too long"],
     },
-    commitHash: {
-      type: String,
-      default: null,
-      trim: true,
-    },
-    logs: {
-      type: [String],
-      default: [],
-    },
-    // ── Phase 4 ──────────────────────────────────────────────────────────────
+    commitHash: { type: String, default: null, trim: true },
+    logs: { type: [String], default: [] },
     subdomain: {
       type: String,
       default: null,
@@ -95,36 +96,36 @@ const deploymentSchema = new Schema<IDeployment, IDeploymentModel>(
       maxlength: [63, "Subdomain too long"],
       index: true,
     },
-    // ─────────────────────────────────────────────────────────────────────────
-    publicUrl: {
-      type: String,
-      default: null,
-      trim: true,
-    },
-    containerId: {
-      type: String,
-      default: null,
-      trim: true,
-    },
+    publicUrl: { type: String, default: null, trim: true },
+    containerId: { type: String, default: null, trim: true },
+    imageTag: { type: String, default: null, trim: true },
     port: {
       type: Number,
       default: null,
       min: [1, "Invalid port"],
       max: [65535, "Invalid port"],
     },
-    startedAt: {
-      type: Date,
-      default: null,
-    },
-    completedAt: {
-      type: Date,
-      default: null,
-    },
+    startedAt: { type: Date, default: null },
+    completedAt: { type: Date, default: null },
     errorMessage: {
       type: String,
       default: null,
       maxlength: [1000, "Error message too long"],
     },
+    // ── Phase 5 ──────────────────────────────────────────────────────────────
+    healthStatus: {
+      type: String,
+      enum: ["healthy", "unhealthy", "unknown"],
+      default: "unknown",
+    },
+    lastHealthCheckAt: { type: Date, default: null },
+    consecutiveFailures: { type: Number, default: 0, min: 0 },
+    triggerSource: {
+      type: String,
+      enum: ["manual", "webhook", "rollback", "redeploy"],
+      default: "manual",
+    },
+    // ─────────────────────────────────────────────────────────────────────────
   },
   {
     timestamps: true,
@@ -140,6 +141,7 @@ const deploymentSchema = new Schema<IDeployment, IDeploymentModel>(
 deploymentSchema.index({ ownerId: 1, createdAt: -1 });
 deploymentSchema.index({ projectId: 1, createdAt: -1 });
 deploymentSchema.index({ status: 1, createdAt: -1 });
+deploymentSchema.index({ status: 1, healthStatus: 1 });
 
 export const Deployment = model<IDeployment, IDeploymentModel>(
   "Deployment",

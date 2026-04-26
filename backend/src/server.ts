@@ -14,7 +14,9 @@ import { errorHandler } from "./middleware/error-handler";
 import authRoutes from "./routes/auth.route";
 import projectRoutes from "./routes/project.route";
 import deploymentRoutes from "./routes/deployment.route";
+import webhookRoutes from "./routes/webhook.route"; // Phase 5
 import { bootstrapNginx } from "./services/nginx.service";
+import { startHealthMonitor } from "./services/health.service"; // Phase 5
 
 const app = express();
 
@@ -28,6 +30,24 @@ app.use(
   }),
 );
 app.use(cookieParser());
+
+// Webhook route needs raw body for signature verification — register BEFORE express.json()
+app.use(
+  "/api/webhooks",
+  express.raw({ type: "application/json" }),
+  (req, _res, next) => {
+    // Re-parse so downstream middleware gets a JS object
+    if (Buffer.isBuffer(req.body)) {
+      try {
+        req.body = JSON.parse(req.body.toString("utf-8"));
+      } catch {
+        req.body = {};
+      }
+    }
+    next();
+  },
+);
+
 app.use(express.json({ limit: "1mb" }));
 
 app.get("/health", (_req, res) => {
@@ -37,6 +57,7 @@ app.get("/health", (_req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/projects", projectRoutes);
 app.use("/api/projects/deployments", deploymentRoutes);
+app.use("/api/webhooks", webhookRoutes); // Phase 5
 
 app.use(errorHandler);
 
@@ -52,6 +73,9 @@ const start = async (): Promise<void> => {
       error: String(err),
     });
   }
+
+  // Phase 5: start background health monitor
+  startHealthMonitor();
 
   app.listen(env.PORT, () => {
     logger.info(`API listening on port ${env.PORT}`);

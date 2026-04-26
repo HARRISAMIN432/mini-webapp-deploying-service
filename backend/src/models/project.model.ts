@@ -1,4 +1,18 @@
+/**
+ * project.model.ts  (Phase 5)
+ *
+ * Added fields vs Phase 4:
+ *   - autoDeploy: boolean         — enable webhook-triggered deploys
+ *   - trackedBranch: string       — which branch to watch for auto-deploy
+ *   - startCommand: string        — user-overrideable start command
+ */
+
 import { Model, Schema, Types, model } from "mongoose";
+
+export interface IEnvVar {
+  key: string;
+  value: string;
+}
 
 export interface IProject {
   _id: Types.ObjectId;
@@ -9,10 +23,15 @@ export interface IProject {
   rootDirectory: string;
   installCommand: string;
   buildCommand: string;
+  startCommand: string; // Phase 5
   outputDirectory: string;
-  envVars: Array<{ key: string; value: string }>;
+  envVars: IEnvVar[];
   ownerId: Types.ObjectId;
   activeDeploymentId: Types.ObjectId | null;
+  // ── Phase 5 additions ──────────────────────────────────────────────────────
+  autoDeploy: boolean;
+  trackedBranch: string;
+  // ──────────────────────────────────────────────────────────────────────────
   createdAt: Date;
   updatedAt: Date;
 }
@@ -69,6 +88,12 @@ const projectSchema = new Schema<IProject, IProjectModel>(
       default: "npm run build",
       maxlength: [300, "Build command is too long"],
     },
+    startCommand: {
+      type: String,
+      trim: true,
+      default: "",
+      maxlength: [300, "Start command is too long"],
+    },
     outputDirectory: {
       type: String,
       required: true,
@@ -107,6 +132,18 @@ const projectSchema = new Schema<IProject, IProjectModel>(
       default: null,
       index: true,
     },
+    // ── Phase 5 ──────────────────────────────────────────────────────────────
+    autoDeploy: {
+      type: Boolean,
+      default: false,
+    },
+    trackedBranch: {
+      type: String,
+      trim: true,
+      default: "main",
+      maxlength: [100, "Tracked branch is too long"],
+    },
+    // ─────────────────────────────────────────────────────────────────────────
   },
   {
     timestamps: true,
@@ -121,5 +158,6 @@ const projectSchema = new Schema<IProject, IProjectModel>(
 
 projectSchema.index({ ownerId: 1, createdAt: -1 });
 projectSchema.index({ ownerId: 1, name: 1 }, { unique: true });
+projectSchema.index({ repoUrl: 1 }); // Phase 5: webhook lookup by repoUrl
 
 export const Project = model<IProject, IProjectModel>("Project", projectSchema);

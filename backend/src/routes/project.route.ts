@@ -1,6 +1,22 @@
-// project.route.ts
+/**
+ * project.route.ts  (Phase 5)
+ *
+ * New routes added:
+ *   GET    /:projectId/details
+ *   PATCH  /:projectId/settings
+ *   GET    /:projectId/deployments
+ *   POST   /:projectId/redeploy
+ *   POST   /:projectId/rollback/:deploymentId
+ *   GET    /:projectId/metrics
+ *   GET    /:projectId/domains
+ *   GET    /:projectId/env
+ *   POST   /:projectId/env
+ *   PATCH  /:projectId/env/:key
+ *   DELETE /:projectId/env/:key
+ */
+
 import dotenv from "dotenv";
-dotenv.config(); // Load environment variables
+dotenv.config({ quiet: true });
 import { Router, Request, Response } from "express";
 import { authenticate } from "../middleware/authenticate";
 import { validate } from "../middleware/validate";
@@ -15,20 +31,14 @@ import * as projectService from "../services/project.service";
 
 const router = Router();
 
-// ✅ SSE route FIRST - before authentication
-router.get("/deployments/logs/stream", (req: Request, res: Response) => {
-  console.log("📡 SSE stream request received", {
-    query: req.query,
-    hasToken: !!req.query.token,
-  });
+// ─── SSE route (BEFORE auth middleware) ──────────────────────────────────────
 
+router.get("/deployments/logs/stream", (req: Request, res: Response) => {
   let userId: string;
 
   try {
     const token = req.query.token as string;
-
     if (!token) {
-      console.log("❌ No token provided for SSE stream");
       res.status(401).json({ success: false, error: "Unauthorized" });
       return;
     }
@@ -37,30 +47,21 @@ router.get("/deployments/logs/stream", (req: Request, res: Response) => {
       id?: string;
       sub?: string;
     };
-
     userId = payload.id || payload.sub || "";
-
     if (!userId) {
-      console.log("❌ No user ID found in token payload", { payload });
       res.status(401).json({ success: false, error: "Invalid token payload" });
       return;
     }
-
-    console.log(`✅ SSE stream authenticated for user ${userId}`);
-  } catch (err) {
-    console.error("❌ Token verification failed:", err);
+  } catch {
     res.status(401).json({ success: false, error: "Invalid token" });
     return;
   }
 
   const deploymentId = req.query.deploymentId as string;
   if (!deploymentId) {
-    console.log("❌ No deploymentId provided");
     res.status(400).json({ success: false, error: "deploymentId required" });
     return;
   }
-
-  console.log(`📡 Setting up SSE stream for deployment: ${deploymentId}`);
 
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache, no-transform");
@@ -70,43 +71,33 @@ router.get("/deployments/logs/stream", (req: Request, res: Response) => {
 
   const send = (event: string, data: unknown) => {
     res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
-    if (typeof (res as any).flush === "function") {
-      (res as any).flush();
-    }
+    if (typeof (res as any).flush === "function") (res as any).flush();
   };
 
-  const pingInterval = setInterval(() => {
-    res.write(": ping\n\n");
-  }, 15000);
-
+  const pingInterval = setInterval(() => res.write(": ping\n\n"), 15000);
   const registryKey = `${userId}:${deploymentId}`;
-  console.log(`🔑 Registering SSE connection with key: ${registryKey}`);
   const unregister = logStreamRegistry.register(registryKey, send);
 
   projectService
     .getLogsForDeployment(userId, deploymentId, 500)
     .then((logs) => {
-      console.log(
-        `📜 Replaying ${logs.length} logs for deployment ${deploymentId}`,
-      );
       logs.forEach((entry) => send("log", entry));
       send("replay_done", { deploymentId });
     })
-    .catch((err) => {
-      console.error(`❌ Failed to replay logs:`, err);
-    });
+    .catch(() => {});
 
   req.on("close", () => {
-    console.log(`🔌 SSE connection closed for key: ${registryKey}`);
     clearInterval(pingInterval);
     unregister();
   });
 });
 
-// ❌ Now apply authentication for all other routes
+// ─── Auth middleware for all routes below ────────────────────────────────────
+
 router.use(authenticate);
 
-// Regular project routes
+// ─── Core project CRUD ───────────────────────────────────────────────────────
+
 router.get("/", project.listProjects);
 router.post("/", validate(createProjectSchema), project.createProject);
 router.get("/deployments", project.listDeployments);
@@ -117,6 +108,28 @@ router.patch(
   project.updateProject,
 );
 router.delete("/:projectId", project.deleteProject);
+
+// ─── Deployment actions ──────────────────────────────────────────────────────
+
 router.post("/:projectId/deploy", project.createDeployment);
+
+// Phase 5
+router.post("/:projectId/redeploy", project.redeployProject);
+router.post("/:projectId/rollback/:deploymentId", project.rollbackToDeployment);
+
+// ─── Phase 5: Project detail, settings, metrics, domains ─────────────────────
+
+router.get("/:projectId/details", project.getProjectDetails);
+router.patch("/:projectId/settings", project.updateProjectSettings);
+router.get("/:projectId/deployments", project.listProjectDeployments);
+router.get("/:projectId/metrics", project.getProjectMetrics);
+router.get("/:projectId/domains", project.getProjectDomains);
+
+// ─── Phase 5: Environment variables ──────────────────────────────────────────
+
+router.get("/:projectId/env", project.listEnvVars);
+router.post("/:projectId/env", project.addEnvVar);
+router.patch("/:projectId/env/:key", project.updateEnvVar);
+router.delete("/:projectId/env/:key", project.deleteEnvVar);
 
 export default router;
