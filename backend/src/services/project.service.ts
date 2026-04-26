@@ -428,19 +428,24 @@ export const stopDeployment = async (ownerId: string, deploymentId: string) => {
   });
   if (!deployment) throw notFound("Deployment not found");
 
+  // Force kill the container
   await teardownDeployment(deployment);
 
+  // Update status
   deployment.status = "stopped";
   deployment.completedAt = new Date();
-  deployment.errorMessage = null;
+  deployment.healthStatus = "unhealthy";
+  deployment.errorMessage = "Stopped by user";
   await deployment.save();
 
+  // Clear active deployment from project
   await Project.updateOne(
     { _id: deployment.projectId, activeDeploymentId: deployment._id },
     { $set: { activeDeploymentId: null } },
   );
 
   await appendDeploymentLog(deployment._id, "Deployment stopped by user");
+
   return deployment;
 };
 

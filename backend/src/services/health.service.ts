@@ -136,10 +136,49 @@ async function checkDeployment(deployment: {
   }
 }
 
+async function detectDeadContainers(): Promise<void> {
+  // Find deployments marked as "running" but whose containers are actually dead
+  const running = await Deployment.find({ status: "running" })
+    .select("_id containerId status")
+    .lean();
+
+  for (const deployment of running) {
+    if (!deployment.containerId) continue;
+
+    const containerStatus = getContainerStatus(deployment.containerId);
+
+    // If container is exited/dead but DB says running → update status
+    if (containerStatus === "exited" || containerStatus === "dead") {
+      logger.warn(
+        `[health] Deployment ${deployment._id} marked running but container is ${containerStatus}`,
+      );
+
+      await Deployment.findByIdAndUpdate(deployment._id, {
+        $set: {
+          status: "stopped",
+          completedAt: new Date(),
+          errorMessage: `Container ${containerStatus} unexpectedly`,
+          healthStatus: "unhealthy",
+        },
+        $unset: { activeDeploymentId: "" },
+      });
+
+      // Also clear activeDeploymentId from project
+      await Project.updateOne(
+        { activeDeploymentId: deployment._id },
+        { $set: { activeDeploymentId: null } },
+      );
+    }
+  }
+}
+
 // ─── Runner ───────────────────────────────────────────────────────────────────
 
 async function runHealthChecks(): Promise<void> {
   try {
+    // First, detect any containers that died unexpectedly
+    await detectDeadContainers();
+
     const running = await Deployment.find({ status: "running" })
       .select("_id containerId port consecutiveFailures projectId")
       .lean();
@@ -148,7 +187,6 @@ async function runHealthChecks(): Promise<void> {
 
     logger.info(`[health] Checking ${running.length} running deployment(s)`);
 
-    // Run checks in parallel but limit concurrency to avoid thundering herd
     const BATCH = 5;
     for (let i = 0; i < running.length; i += BATCH) {
       const batch = running.slice(i, i + BATCH);
