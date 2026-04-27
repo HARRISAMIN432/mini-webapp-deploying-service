@@ -48,57 +48,93 @@ export function ProjectSettingsPanel({
     }
   };
 
-  const field = (
-    label: string,
-    key: keyof typeof form,
-    placeholder?: string,
+  const Field = ({
+    label,
+    fieldKey,
+    placeholder,
     mono = true,
-  ) => (
+  }: {
+    label: string;
+    fieldKey: keyof typeof form;
+    placeholder?: string;
+    mono?: boolean;
+  }) => (
     <label className="flex flex-col gap-1.5">
-      <span className="text-[11px] font-medium text-slate-500">{label}</span>
+      <span className="text-xs font-medium text-gray-500">{label}</span>
       <input
-        value={form[key] as string}
-        onChange={set(key as any)}
+        value={form[fieldKey] as string}
+        onChange={set(fieldKey as any)}
         placeholder={placeholder}
-        className={`w-full bg-[#060d1a] border border-[#1e293b] rounded-xl px-3.5 py-2.5 text-[13px] ${mono ? "font-mono" : ""} text-white outline-none focus:border-indigo-500/60 focus:ring-2 focus:ring-indigo-500/10 transition-all placeholder:text-slate-700`}
+        className={`w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm ${mono ? "font-mono" : ""} text-gray-900 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all placeholder:text-gray-300`}
       />
     </label>
   );
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-5">
       {error && (
-        <div className="rounded-xl border border-red-500/30 bg-red-500/8 px-4 py-2.5 text-xs text-red-300">
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </div>
       )}
       {saved && (
-        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/8 px-4 py-2.5 text-xs text-emerald-400">
-          ✓ Settings saved
+        <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700 flex items-center gap-2">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <circle cx="7" cy="7" r="6" stroke="#16A34A" strokeWidth="1.5" />
+            <path
+              d="M4.5 7L6.5 9L9.5 5"
+              stroke="#16A34A"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+          Settings saved successfully
         </div>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {field("Project name", "name", "my-app", false)}
-        {field("Branch", "branch", "main")}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Field
+          label="Project name"
+          fieldKey="name"
+          placeholder="my-app"
+          mono={false}
+        />
+        <Field label="Branch" fieldKey="branch" placeholder="main" />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {field("Install command", "installCommand", "npm install")}
-        {field("Build command", "buildCommand", "npm run build")}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Field
+          label="Install command"
+          fieldKey="installCommand"
+          placeholder="npm install"
+        />
+        <Field
+          label="Build command"
+          fieldKey="buildCommand"
+          placeholder="npm run build"
+        />
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {field("Start command", "startCommand", "npm start (optional)")}
-        {field("Root directory", "rootDirectory", "./")}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Field
+          label="Start command"
+          fieldKey="startCommand"
+          placeholder="npm start (optional)"
+        />
+        <Field
+          label="Root directory"
+          fieldKey="rootDirectory"
+          placeholder="./"
+        />
       </div>
 
       {/* Auto-deploy toggle */}
-      <div className="bg-[#060d1a] border border-[#1e293b] rounded-xl p-4">
+      <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <p className="text-sm font-medium text-slate-300">Auto Deploy</p>
-            <p className="text-xs text-slate-600 mt-0.5">
+            <p className="text-sm font-medium text-gray-900">Auto Deploy</p>
+            <p className="text-xs text-gray-500 mt-0.5">
               Trigger deployments from GitHub push events
             </p>
           </div>
@@ -107,23 +143,23 @@ export function ProjectSettingsPanel({
             onClick={() =>
               setForm((f) => ({ ...f, autoDeploy: !f.autoDeploy }))
             }
-            className={`relative w-10 h-5 rounded-full transition-colors ${form.autoDeploy ? "bg-indigo-600" : "bg-slate-700"}`}
+            className={`relative w-11 h-6 rounded-full transition-colors ${form.autoDeploy ? "bg-gray-900" : "bg-gray-300"}`}
           >
             <span
-              className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${form.autoDeploy ? "translate-x-5" : "translate-x-0"}`}
+              className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-sm transition-transform ${form.autoDeploy ? "translate-x-5" : "translate-x-0"}`}
             />
           </button>
         </div>
         {form.autoDeploy && (
           <label className="flex flex-col gap-1.5">
-            <span className="text-[11px] font-medium text-slate-500">
+            <span className="text-xs font-medium text-gray-500">
               Watched branch
             </span>
             <input
               value={form.trackedBranch}
               onChange={set("trackedBranch")}
               placeholder="main"
-              className="w-full bg-[#0c1425] border border-[#1e293b] rounded-lg px-3 py-2 text-[12px] font-mono text-white outline-none focus:border-indigo-500/50 transition-colors"
+              className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono text-gray-900 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all"
             />
           </label>
         )}
@@ -131,21 +167,21 @@ export function ProjectSettingsPanel({
 
       {/* Webhook info */}
       {form.autoDeploy && (
-        <div className="rounded-xl border border-indigo-500/15 bg-indigo-500/5 px-4 py-3">
-          <p className="text-[11px] font-semibold text-indigo-400 mb-1">
+        <div className="rounded-xl border border-violet-200 bg-violet-50 px-4 py-4">
+          <p className="text-xs font-semibold text-violet-700 mb-1.5">
             GitHub Webhook URL
           </p>
-          <code className="text-[11px] font-mono text-slate-400">
+          <code className="text-xs font-mono text-violet-600 break-all">
             {typeof window !== "undefined"
               ? window.location.origin.replace(/:\d+/, ":3001")
               : "http://localhost:3001"}
             /api/webhooks/github
           </code>
-          <p className="text-[10px] text-slate-600 mt-1.5">
+          <p className="text-xs text-violet-500 mt-2 leading-relaxed">
             Add this as a Webhook in your GitHub repo settings (Content type:
             application/json). Optionally set{" "}
-            <code className="text-slate-500">GITHUB_WEBHOOK_SECRET</code> on the
-            server.
+            <code className="text-violet-700">GITHUB_WEBHOOK_SECRET</code> on
+            the server.
           </p>
         </div>
       )}
@@ -154,7 +190,7 @@ export function ProjectSettingsPanel({
         <button
           type="submit"
           disabled={saving}
-          className="px-5 py-2.5 text-sm font-semibold rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white transition-all hover:-translate-y-px hover:shadow-[0_6px_20px_rgba(99,102,241,0.3)] disabled:opacity-60 active:translate-y-0"
+          className="px-5 py-2.5 text-sm font-semibold rounded-xl bg-gray-900 hover:bg-gray-700 text-white transition-all disabled:opacity-60"
         >
           {saving ? "Saving…" : "Save settings"}
         </button>

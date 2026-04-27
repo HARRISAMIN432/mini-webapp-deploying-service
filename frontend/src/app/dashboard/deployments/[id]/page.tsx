@@ -19,100 +19,86 @@ import type { Deployment } from "@/lib/types/dashboard";
 // ─── Constants ────────────────────────────────────────────────────────────────
 const STREAM_URL = `${process.env.NEXT_PUBLIC_API_URL}/api/projects/deployments/logs/stream`;
 
-// ─── Status config ────────────────────────────────────────────────────────────
+// ─── Status config (consistent with dashboard) ────────────────────────────────
 const STATUS_CONFIG: Record<
   DeploymentStatus,
-  { label: string; color: string; bg: string; ring: string; pulse: boolean }
+  { label: string; dotClass: string; bgClass: string; textClass: string }
 > = {
   queued: {
-    label: "Queued",
-    color: "#fbbf24",
-    bg: "rgba(251,191,36,0.1)",
-    ring: "rgba(251,191,36,0.3)",
-    pulse: false,
+    label: "Building",
+    dotClass: "bg-amber-400",
+    bgClass: "bg-amber-50",
+    textClass: "text-amber-700",
   },
   cloning: {
-    label: "Cloning",
-    color: "#22d3ee",
-    bg: "rgba(34,211,238,0.1)",
-    ring: "rgba(34,211,238,0.3)",
-    pulse: true,
+    label: "Building",
+    dotClass: "bg-amber-400 animate-pulse",
+    bgClass: "bg-amber-50",
+    textClass: "text-amber-700",
   },
   building: {
     label: "Building",
-    color: "#60a5fa",
-    bg: "rgba(96,165,250,0.1)",
-    ring: "rgba(96,165,250,0.3)",
-    pulse: true,
+    dotClass: "bg-amber-400 animate-pulse",
+    bgClass: "bg-amber-50",
+    textClass: "text-amber-700",
   },
   starting: {
-    label: "Starting",
-    color: "#a78bfa",
-    bg: "rgba(167,139,250,0.1)",
-    ring: "rgba(167,139,250,0.3)",
-    pulse: true,
+    label: "Building",
+    dotClass: "bg-amber-400 animate-pulse",
+    bgClass: "bg-amber-50",
+    textClass: "text-amber-700",
   },
   running: {
     label: "Live",
-    color: "#34d399",
-    bg: "rgba(52,211,153,0.1)",
-    ring: "rgba(52,211,153,0.3)",
-    pulse: false,
+    dotClass: "bg-green-500",
+    bgClass: "bg-green-50",
+    textClass: "text-green-700",
   },
   failed: {
     label: "Failed",
-    color: "#f87171",
-    bg: "rgba(248,113,113,0.1)",
-    ring: "rgba(248,113,113,0.3)",
-    pulse: false,
+    dotClass: "bg-red-500",
+    bgClass: "bg-red-50",
+    textClass: "text-red-700",
   },
   stopped: {
     label: "Stopped",
-    color: "#6b7280",
-    bg: "rgba(107,114,128,0.1)",
-    ring: "rgba(107,114,128,0.3)",
-    pulse: false,
+    dotClass: "bg-gray-400",
+    bgClass: "bg-gray-100",
+    textClass: "text-gray-600",
   },
 };
 
 const TERMINAL_COLORS: Record<string, string> = {
-  "❌": "#f87171",
-  "✅": "#34d399",
-  "✓": "#34d399",
-  "🚀": "#a78bfa",
-  "📦": "#60a5fa",
-  "🔍": "#22d3ee",
-  "🔨": "#fbbf24",
-  "🐳": "#60a5fa",
-  "📥": "#a78bfa",
-  "⏳": "#94a3b8",
-  "▶": "#34d399",
-  "🔌": "#fbbf24",
-  "🐍": "#34d399",
-  ℹ: "#94a3b8",
-  "[container]": "#f87171",
-  "Failed:": "#f87171",
-  "Error:": "#f87171",
+  "❌": "#ef4444",
+  "✅": "#10b981",
+  "✓": "#10b981",
+  "🚀": "#8b5cf6",
+  "📦": "#3b82f6",
+  "🔍": "#06b6d4",
+  "🔨": "#f59e0b",
+  "🐳": "#3b82f6",
+  "📥": "#8b5cf6",
+  "⏳": "#6b7280",
+  "▶": "#10b981",
+  "🔌": "#f59e0b",
+  "🐍": "#10b981",
+  ℹ: "#6b7280",
+  "[container]": "#ef4444",
+  "Failed:": "#ef4444",
+  "Error:": "#ef4444",
 };
 
 function getLineColor(text: string): string {
   for (const [prefix, color] of Object.entries(TERMINAL_COLORS)) {
     if (text.includes(prefix)) return color;
   }
-  if (text.includes("────")) return "#374151";
-  return "#94a3b8";
+  if (text.includes("────")) return "#d1d5db";
+  return "#9ca3af";
 }
 
 function getAuthToken(): string | null {
   if (typeof window === "undefined") return null;
-
-  const token = localStorage.getItem("shipstack_access_token");
-
-  console.log(
-    "🔑 Token from localStorage:",
-    token ? `${token.substring(0, 20)}...` : "null",
-  );
-  return token;
+  return localStorage.getItem("shipstack_access_token");
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -122,21 +108,9 @@ function StatusBadge({ status }: { status: DeploymentStatus | null }) {
   const cfg = STATUS_CONFIG[status];
   return (
     <span
-      className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold"
-      style={{
-        background: cfg.bg,
-        color: cfg.color,
-        boxShadow: `0 0 0 1px ${cfg.ring}`,
-        fontFamily: "'DM Mono', monospace",
-      }}
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${cfg.bgClass} ${cfg.textClass}`}
     >
-      <span
-        className="h-2 w-2 rounded-full"
-        style={{
-          background: cfg.color,
-          animation: cfg.pulse ? "pulse 1.5s ease-in-out infinite" : "none",
-        }}
-      />
+      <span className={`w-1.5 h-1.5 rounded-full ${cfg.dotClass}`} />
       {cfg.label}
     </span>
   );
@@ -152,25 +126,13 @@ function MetaChip({
   mono?: boolean;
 }) {
   return (
-    <div
-      className="flex flex-col gap-0.5 rounded-xl px-3 py-2.5"
-      style={{
-        background: "rgba(255,255,255,0.03)",
-        border: "1px solid rgba(255,255,255,0.07)",
-      }}
-    >
-      <span
-        className="text-[10px] uppercase tracking-widest"
-        style={{ color: "#4b5563" }}
-      >
+    <div className="bg-gray-50 rounded-lg px-3 py-2">
+      <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wider mb-0.5">
         {label}
-      </span>
-      <span
-        className="text-[13px] text-slate-300 truncate"
-        style={mono ? { fontFamily: "'DM Mono', monospace" } : {}}
-      >
+      </p>
+      <p className={`text-sm text-gray-700 ${mono ? "font-mono" : ""}`}>
         {value}
-      </span>
+      </p>
     </div>
   );
 }
@@ -184,35 +146,23 @@ function ConnectionDot({
 }) {
   if (isReconnecting) {
     return (
-      <span
-        className="flex items-center gap-1.5 text-[11px]"
-        style={{ color: "#fbbf24", fontFamily: "'DM Mono', monospace" }}
-      >
-        <span
-          className="h-1.5 w-1.5 rounded-full bg-amber-400"
-          style={{ animation: "pulse 1s ease-in-out infinite" }}
-        />
+      <span className="flex items-center gap-1.5 text-xs text-amber-600 font-mono">
+        <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
         reconnecting
       </span>
     );
   }
   if (isConnected) {
     return (
-      <span
-        className="flex items-center gap-1.5 text-[11px]"
-        style={{ color: "#34d399", fontFamily: "'DM Mono', monospace" }}
-      >
-        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+      <span className="flex items-center gap-1.5 text-xs text-green-600 font-mono">
+        <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
         live
       </span>
     );
   }
   return (
-    <span
-      className="flex items-center gap-1.5 text-[11px]"
-      style={{ color: "#6b7280", fontFamily: "'DM Mono', monospace" }}
-    >
-      <span className="h-1.5 w-1.5 rounded-full bg-slate-600" />
+    <span className="flex items-center gap-1.5 text-xs text-gray-400 font-mono">
+      <span className="h-1.5 w-1.5 rounded-full bg-gray-400" />
       offline
     </span>
   );
@@ -315,42 +265,44 @@ export default function DeploymentDetailPage() {
 
   if (metaError) {
     return (
-      <div className="flex flex-col items-center justify-center py-32 text-center">
-        <p className="text-red-400 mb-4">{metaError}</p>
-        <Link
-          href="/dashboard/deployments"
-          className="text-sm text-indigo-400 hover:text-indigo-300"
-        >
-          ← Back to deployments
-        </Link>
+      <div className="p-8">
+        <div className="flex flex-col items-center justify-center py-32 text-center">
+          <p className="text-red-600 mb-4">{metaError}</p>
+          <Link
+            href="/dashboard/deployments"
+            className="text-sm text-violet-600 hover:text-violet-700 font-medium"
+          >
+            ← Back to deployments
+          </Link>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6" style={{ fontFamily: "'Sora', sans-serif" }}>
-      {/* ── Header ── */}
-      <div>
-        <div className="flex items-center gap-2 mb-3 text-xs">
+    <div className="p-8 max-w-6xl">
+      {/* Header */}
+      <div className="mb-6">
+        <div className="flex items-center gap-2 text-sm text-gray-500 mb-3">
           <Link
             href="/dashboard/deployments"
-            className="text-slate-600 hover:text-slate-400 transition-colors"
+            className="hover:text-gray-700 transition-colors"
           >
             Deployments
           </Link>
-          <span className="text-slate-800">·</span>
+          <span>/</span>
           {projectName && projectId && (
             <>
               <Link
                 href={`/dashboard/projects/${projectId}`}
-                className="text-slate-600 hover:text-slate-400 transition-colors"
+                className="hover:text-gray-700 transition-colors"
               >
                 {projectName}
               </Link>
-              <span className="text-slate-800">·</span>
+              <span>/</span>
             </>
           )}
-          <span className="text-slate-700 font-mono" title={deploymentId}>
+          <span className="font-mono text-gray-400">
             {deploymentId.slice(-8)}
           </span>
         </div>
@@ -358,19 +310,13 @@ export default function DeploymentDetailPage() {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-3">
-              <h1
-                className="text-3xl font-bold text-white"
-                style={{ letterSpacing: "-0.02em" }}
-              >
+              <h1 className="text-2xl font-semibold text-gray-900">
                 {projectName ? `${projectName}` : "Deployment"}
               </h1>
               <StatusBadge status={effectiveStatus} />
             </div>
             {effectiveCommit && (
-              <p
-                className="mt-1 text-xs text-slate-600"
-                style={{ fontFamily: "'DM Mono', monospace" }}
-              >
+              <p className="mt-1 text-xs text-gray-400 font-mono">
                 commit {effectiveCommit.slice(0, 7)}
               </p>
             )}
@@ -383,11 +329,7 @@ export default function DeploymentDetailPage() {
                 href={effectivePublicUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold text-white transition-all hover:scale-[1.02]"
-                style={{
-                  background: "linear-gradient(135deg, #10b981, #059669)",
-                  boxShadow: "0 0 20px rgba(16,185,129,0.25)",
-                }}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-all"
               >
                 ↗ Open app
               </a>
@@ -397,11 +339,7 @@ export default function DeploymentDetailPage() {
               <button
                 onClick={handleStop}
                 disabled={stopping}
-                className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium text-red-300 transition-all hover:scale-[1.02] disabled:opacity-50"
-                style={{
-                  background: "rgba(239,68,68,0.08)",
-                  border: "1px solid rgba(239,68,68,0.25)",
-                }}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-all disabled:opacity-50"
               >
                 {stopping ? "Stopping…" : "■ Stop"}
               </button>
@@ -409,14 +347,7 @@ export default function DeploymentDetailPage() {
 
             <button
               onClick={clearLogs}
-              className="rounded-lg px-3 py-2 text-xs transition-colors"
-              style={{
-                background: "rgba(255,255,255,0.04)",
-                border: "1px solid rgba(255,255,255,0.08)",
-                color: "#6b7280",
-                fontFamily: "'DM Mono', monospace",
-                cursor: "pointer",
-              }}
+              className="px-3 py-2 text-xs font-mono text-gray-500 hover:text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
             >
               clear
             </button>
@@ -424,53 +355,39 @@ export default function DeploymentDetailPage() {
         </div>
       </div>
 
-      {/* ── Error banner ── */}
+      {/* Error banner */}
       {effectiveStatus === "failed" && effectiveError && (
-        <div
-          className="flex items-start gap-3 rounded-xl p-4 text-sm"
-          style={{
-            background: "rgba(239,68,68,0.07)",
-            border: "1px solid rgba(239,68,68,0.2)",
-            color: "#fca5a5",
-          }}
-        >
-          <span className="text-lg shrink-0">⚠</span>
-          <span
-            style={{ fontFamily: "'DM Mono', monospace", fontSize: "12px" }}
-          >
-            {effectiveError}
-          </span>
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+          <div className="flex items-start gap-3">
+            <span className="text-red-500">⚠️</span>
+            <p className="text-sm text-red-700 font-mono">{effectiveError}</p>
+          </div>
         </div>
       )}
 
-      {/* ── Success banner ── */}
+      {/* Success banner */}
       {effectiveStatus === "running" && effectivePublicUrl && (
-        <div
-          className="flex items-center gap-3 rounded-xl p-4"
-          style={{
-            background: "rgba(52,211,153,0.07)",
-            border: "1px solid rgba(52,211,153,0.2)",
-          }}
-        >
-          <span className="text-emerald-400">✅</span>
-          <span className="text-emerald-300 text-sm">
-            Deployment is live at{" "}
-            <a
-              href={effectivePublicUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline hover:text-emerald-200 transition-colors"
-              style={{ fontFamily: "'DM Mono', monospace" }}
-            >
-              {effectivePublicUrl}
-            </a>
-          </span>
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+          <div className="flex items-center gap-3">
+            <span className="text-green-600">✅</span>
+            <p className="text-sm text-green-700">
+              Deployment is live at{" "}
+              <a
+                href={effectivePublicUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-mono underline hover:text-green-800 transition-colors"
+              >
+                {effectivePublicUrl}
+              </a>
+            </p>
+          </div>
         </div>
       )}
 
-      {/* ── Metadata chips ── */}
+      {/* Metadata chips */}
       {metadata && (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 mb-6">
           <MetaChip
             label="Framework"
             value={
@@ -505,46 +422,17 @@ export default function DeploymentDetailPage() {
         </div>
       )}
 
-      {/* ── Terminal ── */}
-      <div
-        className="relative overflow-hidden rounded-2xl"
-        style={{
-          border: "1px solid rgba(99,102,241,0.2)",
-          background: "#050710",
-          boxShadow: "0 0 60px rgba(99,102,241,0.06)",
-        }}
-      >
-        {/* Glow */}
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            background:
-              "radial-gradient(ellipse 80% 30% at 50% 0%, rgba(99,102,241,0.1), transparent 70%)",
-          }}
-        />
-
+      {/* Terminal */}
+      <div className="border border-gray-200 rounded-lg overflow-hidden bg-gray-50">
         {/* Title bar */}
-        <div
-          className="relative flex items-center justify-between px-4 py-3"
-          style={{
-            background: "#0a0c18",
-            borderBottom: "1px solid rgba(255,255,255,0.05)",
-          }}
-        >
-          <div className="flex items-center gap-4">
-            {/* Traffic lights */}
+        <div className="flex items-center justify-between px-4 py-2.5 bg-gray-100 border-b border-gray-200">
+          <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5">
-              <div className="h-3 w-3 rounded-full bg-red-500/70" />
-              <div className="h-3 w-3 rounded-full bg-yellow-500/70" />
-              <div className="h-3 w-3 rounded-full bg-green-500/70" />
+              <div className="h-3 w-3 rounded-full bg-red-400" />
+              <div className="h-3 w-3 rounded-full bg-yellow-400" />
+              <div className="h-3 w-3 rounded-full bg-green-400" />
             </div>
-            <span
-              style={{
-                color: "#374151",
-                fontSize: "12px",
-                fontFamily: "'DM Mono', monospace",
-              }}
-            >
+            <span className="text-xs text-gray-500 font-mono">
               {projectName ?? "deployment"} — build log
             </span>
           </div>
@@ -555,13 +443,7 @@ export default function DeploymentDetailPage() {
               isReconnecting={isReconnecting}
             />
             {lines.length > 0 && (
-              <span
-                style={{
-                  color: "#374151",
-                  fontSize: "11px",
-                  fontFamily: "'DM Mono', monospace",
-                }}
-              >
+              <span className="text-xs text-gray-400 font-mono">
                 {lines.length} line{lines.length !== 1 ? "s" : ""}
               </span>
             )}
@@ -572,25 +454,22 @@ export default function DeploymentDetailPage() {
         <div
           ref={scrollRef}
           onScroll={handleScroll}
-          className="relative overflow-auto px-4 py-4"
+          className="overflow-auto p-4 font-mono text-xs"
           style={{
             maxHeight: "560px",
             minHeight: "240px",
-            fontFamily: "'DM Mono', monospace",
-            fontSize: "12.5px",
-            lineHeight: "1.65",
+            lineHeight: "1.6",
+            background: "#0a0c14",
           }}
         >
           {lines.length === 0 ? (
-            <div style={{ color: "#374151" }}>
+            <div className="text-gray-600">
               <span>
                 $ waiting for deployment logs
-                <span style={{ animation: "blink-cur 1s step-start infinite" }}>
-                  _
-                </span>
+                <span className="animate-pulse">_</span>
               </span>
               {isReconnecting && (
-                <div style={{ color: "#fbbf24", marginTop: 4 }}>
+                <div className="text-amber-600 mt-1">
                   ⟳ reconnecting to log stream…
                 </div>
               )}
@@ -600,17 +479,14 @@ export default function DeploymentDetailPage() {
               {lines.map((line, i) => (
                 <div
                   key={line.id}
+                  className="whitespace-pre-wrap break-all"
                   style={{
                     color: getLineColor(line.text),
                     animation:
-                      i >= lines.length - 5
-                        ? "log-enter 0.2s ease-out both"
-                        : "none",
-                    whiteSpace: "pre-wrap",
-                    wordBreak: "break-all",
+                      i >= lines.length - 5 ? "fadeInUp 0.2s ease-out" : "none",
                   }}
                 >
-                  <span style={{ color: "#1f2937", userSelect: "none" }}>
+                  <span className="text-gray-700 select-none">
                     {new Date(line.timestamp).toISOString().slice(11, 19)}{" "}
                   </span>
                   {line.text}
@@ -620,14 +496,8 @@ export default function DeploymentDetailPage() {
           )}
 
           {/* Blinking cursor while active */}
-          {!isTerminal && (
-            <span
-              className="ml-1 inline-block h-3.5 w-1.5 align-middle"
-              style={{
-                background: "#4f46e5",
-                animation: "blink-cur 1s step-start infinite",
-              }}
-            />
+          {!isTerminal && lines.length > 0 && (
+            <span className="inline-block w-2 h-4 bg-violet-500 align-middle animate-pulse" />
           )}
 
           <div ref={bottomRef} />
@@ -643,57 +513,26 @@ export default function DeploymentDetailPage() {
                 block: "end",
               });
             }}
-            className="absolute bottom-4 right-4 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs backdrop-blur"
-            style={{
-              background: "rgba(99,102,241,0.2)",
-              border: "1px solid rgba(99,102,241,0.35)",
-              color: "#818cf8",
-              fontFamily: "'DM Mono', monospace",
-              cursor: "pointer",
-            }}
+            className="absolute bottom-4 right-4 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-mono bg-white border border-gray-200 shadow-sm hover:shadow-md transition-all"
           >
             ↓ jump to latest
           </button>
         )}
       </div>
 
-      {/* ── CSS ── */}
-      <style
-        dangerouslySetInnerHTML={{
-          __html: `
-    @keyframes blink-cur {
-      0%,
-      100% {
-        opacity: 1;
-      }
-      50% {
-        opacity: 0;
-      }
-    }
-
-    @keyframes log-enter {
-      from {
-        opacity: 0;
-        transform: translateY(3px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    @keyframes pulse {
-      0%,
-      100% {
-        opacity: 1;
-      }
-      50% {
-        opacity: 0.3;
-      }
-    }
-  `,
-        }}
-      />
+      {/* CSS Animations */}
+      <style jsx>{`
+        @keyframes fadeInUp {
+          from {
+            opacity: 0;
+            transform: translateY(4px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+      `}</style>
     </div>
   );
 }

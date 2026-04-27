@@ -10,118 +10,127 @@ import type {
   Project,
 } from "@/lib/types/dashboard";
 
-// ─── Status config ─────────────────────────────────────────────────────────────
-const STATUS_CONFIG: Record<
-  DeploymentStatus,
-  { label: string; dot: string; badge: string }
-> = {
-  queued: {
-    label: "Queued",
-    dot: "bg-amber-400",
-    badge: "bg-amber-400/10 text-amber-300 ring-1 ring-amber-400/25",
-  },
-  cloning: {
-    label: "Cloning",
-    dot: "bg-cyan-400 animate-pulse",
-    badge: "bg-cyan-400/10 text-cyan-300 ring-1 ring-cyan-400/25",
-  },
-  building: {
-    label: "Building",
-    dot: "bg-blue-400 animate-pulse",
-    badge: "bg-blue-400/10 text-blue-300 ring-1 ring-blue-400/25",
-  },
-  starting: {
-    label: "Starting",
-    dot: "bg-violet-400 animate-pulse",
-    badge: "bg-violet-400/10 text-violet-300 ring-1 ring-violet-400/25",
-  },
-  running: {
-    label: "Live",
-    dot: "bg-emerald-400",
-    badge: "bg-emerald-400/10 text-emerald-300 ring-1 ring-emerald-400/25",
-  },
-  failed: {
-    label: "Failed",
-    dot: "bg-red-400",
-    badge: "bg-red-400/10 text-red-300 ring-1 ring-red-400/25",
-  },
-  stopped: {
-    label: "Stopped",
-    dot: "bg-slate-500",
-    badge: "bg-slate-500/10 text-slate-400 ring-1 ring-slate-500/25",
-  },
-};
+// ─── Status badge (consistent with dashboard) ─────────────────────────────────
 
-const FRAMEWORK_ICONS: Record<string, string> = {
-  "Next.js": "⬡",
-  React: "⚛",
-  Vue: "◈",
-  Nuxt: "◈",
-  Svelte: "◆",
-  Remix: "◎",
-  Astro: "◉",
-};
+function StatusBadge({ status }: { status: DeploymentStatus | null }) {
+  const map: Record<
+    string,
+    { dot: string; bg: string; text: string; label: string }
+  > = {
+    running: {
+      dot: "bg-green-500",
+      bg: "bg-green-50",
+      text: "text-green-700",
+      label: "Live",
+    },
+    success: {
+      dot: "bg-green-500",
+      bg: "bg-green-50",
+      text: "text-green-700",
+      label: "Live",
+    },
+    failed: {
+      dot: "bg-red-500",
+      bg: "bg-red-50",
+      text: "text-red-700",
+      label: "Failed",
+    },
+    queued: {
+      dot: "bg-amber-400",
+      bg: "bg-amber-50",
+      text: "text-amber-700",
+      label: "Building",
+    },
+    cloning: {
+      dot: "bg-amber-400",
+      bg: "bg-amber-50",
+      text: "text-amber-700",
+      label: "Building",
+    },
+    building: {
+      dot: "bg-amber-400",
+      bg: "bg-amber-50",
+      text: "text-amber-700",
+      label: "Building",
+    },
+    starting: {
+      dot: "bg-amber-400",
+      bg: "bg-amber-50",
+      text: "text-amber-700",
+      label: "Building",
+    },
+    stopped: {
+      dot: "bg-gray-400",
+      bg: "bg-gray-100",
+      text: "text-gray-600",
+      label: "Stopped",
+    },
+  };
 
-function timeAgo(date: string | Date): string {
-  const seconds = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
-  if (seconds < 60) return `${seconds}s ago`;
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  return `${Math.floor(seconds / 86400)}d ago`;
+  const s = map[status ?? "stopped"] ?? {
+    dot: "bg-gray-400",
+    bg: "bg-gray-100",
+    text: "text-gray-600",
+    label: status ?? "Unknown",
+  };
+
+  const isActive =
+    status && ["queued", "cloning", "building", "starting"].includes(status);
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${s.bg} ${s.text}`}
+    >
+      <span
+        className={`w-1.5 h-1.5 rounded-full ${s.dot} ${isActive ? "animate-pulse" : ""}`}
+      />
+      {s.label}
+    </span>
+  );
 }
 
-function SkeletonCard() {
+// ─── Stat card (consistent with dashboard) ────────────────────────────────────
+
+function StatCard({
+  label,
+  value,
+  sub,
+  subPositive,
+}: {
+  label: string;
+  value: string;
+  sub?: string;
+  subPositive?: boolean;
+}) {
   return (
-    <div className="rounded-2xl border border-white/[0.06] bg-[#0b0d14] p-5 animate-pulse">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-center gap-3 flex-1">
-          <div className="h-10 w-10 rounded-xl bg-white/[0.05]" />
-          <div className="flex-1 space-y-2">
-            <div className="h-4 w-36 rounded bg-white/[0.06]" />
-            <div className="h-3 w-52 rounded bg-white/[0.04]" />
-          </div>
-        </div>
-        <div className="h-6 w-16 rounded-full bg-white/[0.05]" />
-      </div>
+    <div className="bg-white rounded-xl border border-gray-200 p-5 flex flex-col gap-1">
+      <p className="text-xs text-gray-500 font-medium">{label}</p>
+      <p className="text-2xl font-bold text-gray-900 tracking-tight">{value}</p>
+      {sub && (
+        <p
+          className={`text-xs font-medium ${subPositive ? "text-green-600" : "text-red-500"}`}
+        >
+          {sub}
+        </p>
+      )}
     </div>
   );
 }
 
-function EmptyState() {
-  return (
-    <div className="flex flex-col items-center justify-center py-24 text-center">
-      <div
-        className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl text-3xl"
-        style={{
-          background:
-            "linear-gradient(135deg, rgba(99,102,241,0.15), rgba(139,92,246,0.1))",
-          border: "1px solid rgba(99,102,241,0.2)",
-        }}
-      >
-        ⬡
-      </div>
-      <h3
-        className="mb-2 text-lg font-semibold text-white"
-        style={{ fontFamily: "'Sora', sans-serif" }}
-      >
-        No projects yet
-      </h3>
-      <p className="mb-6 text-sm text-slate-500 max-w-xs">
-        Connect a repository and deploy your first project in under a minute.
-      </p>
-      <Link
-        href="/dashboard/projects/new"
-        className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition-all hover:scale-[1.02] active:scale-[0.98]"
-        style={{
-          background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
-          boxShadow: "0 0 24px rgba(99,102,241,0.35)",
-        }}
-      >
-        <span>+</span> New Project
-      </Link>
-    </div>
-  );
+// ─── Relative time helper ─────────────────────────────────────────────────────
+
+function relativeTime(dateStr?: string): string {
+  if (!dateStr) return "—";
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} hr ago`;
+  return `${Math.floor(hrs / 24)} days ago`;
 }
+
+// ─── Project Card ─────────────────────────────────────────────────────────────
 
 interface ProjectCardProps {
   project: Project;
@@ -141,10 +150,9 @@ function ProjectCard({
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const status = deployment?.status ?? null;
-  const cfg = status ? STATUS_CONFIG[status] : null;
   const isActive =
     status && ["queued", "cloning", "building", "starting"].includes(status);
-  const frameworkIcon = FRAMEWORK_ICONS[project.framework] ?? "◇";
+  const frameworkIcon = getFrameworkIcon(project.framework);
 
   const handleDeploy = async () => {
     setDeployLoading(true);
@@ -171,91 +179,49 @@ function ProjectCard({
   };
 
   return (
-    <div
-      className="group relative rounded-2xl border transition-all duration-200 hover:border-white/[0.12]"
-      style={{
-        background: "#0b0d14",
-        border: "1px solid rgba(255,255,255,0.06)",
-      }}
-    >
-      {isActive && (
-        <div
-          className="pointer-events-none absolute inset-0 rounded-2xl opacity-40"
-          style={{
-            background:
-              "radial-gradient(ellipse 60% 40% at 30% 0%, rgba(99,102,241,0.15), transparent)",
-          }}
-        />
-      )}
-
-      <div className="relative p-5">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          {/* Left */}
-          <div className="flex items-start gap-3.5 min-w-0">
-            <div
-              className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-lg"
-              style={{
-                background:
-                  "linear-gradient(135deg, rgba(99,102,241,0.18), rgba(139,92,246,0.1))",
-                border: "1px solid rgba(99,102,241,0.2)",
-                color: "#818cf8",
-              }}
-            >
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-sm transition-all">
+      <div className="p-5">
+        <div className="flex items-start justify-between gap-4">
+          {/* Left - Project info */}
+          <div className="flex items-start gap-3 min-w-0 flex-1">
+            <div className="w-10 h-10 rounded-lg bg-gray-50 flex items-center justify-center text-lg flex-shrink-0">
               {frameworkIcon}
             </div>
 
             <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <h3
-                  className="text-[15px] font-semibold text-white truncate"
-                  style={{ fontFamily: "'Sora', sans-serif" }}
-                >
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-sm font-semibold text-gray-900">
                   {project.name}
                 </h3>
-                {cfg ? (
-                  <span
-                    className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium ${cfg.badge}`}
-                  >
-                    <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
-                    {cfg.label}
-                  </span>
+                {status ? (
+                  <StatusBadge status={status} />
                 ) : (
-                  <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium bg-slate-500/10 text-slate-500 ring-1 ring-slate-500/20">
-                    <span className="h-1.5 w-1.5 rounded-full bg-slate-600" />
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                    <span className="w-1.5 h-1.5 rounded-full bg-gray-400" />
                     Idle
                   </span>
                 )}
               </div>
 
-              <p className="mt-0.5 text-xs text-slate-500 truncate max-w-xs">
-                {project.repoUrl.replace("https://github.com/", "⌥ ")}
+              <p className="text-xs text-gray-500 mt-0.5 truncate">
+                {project.repoUrl.replace("https://github.com/", "")}
               </p>
 
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <span
-                  className="rounded-md px-2 py-0.5 text-[11px] font-mono"
-                  style={{
-                    background: "rgba(255,255,255,0.04)",
-                    border: "1px solid rgba(255,255,255,0.07)",
-                    color: "#6b7280",
-                  }}
-                >
+              <div className="flex items-center gap-2 mt-2 flex-wrap">
+                <span className="text-xs text-gray-400 font-mono">
                   {project.framework}
                 </span>
-                <span
-                  className="rounded-md px-2 py-0.5 text-[11px] font-mono"
-                  style={{
-                    background: "rgba(255,255,255,0.04)",
-                    border: "1px solid rgba(255,255,255,0.07)",
-                    color: "#6b7280",
-                  }}
-                >
-                  ⎇ {project.branch}
+                <span className="text-xs text-gray-400">·</span>
+                <span className="text-xs text-gray-400 font-mono">
+                  {project.branch}
                 </span>
                 {deployment?.createdAt && (
-                  <span className="text-[11px] text-slate-600">
-                    {timeAgo(deployment.createdAt)}
-                  </span>
+                  <>
+                    <span className="text-xs text-gray-400">·</span>
+                    <span className="text-xs text-gray-400">
+                      {relativeTime(deployment.createdAt)}
+                    </span>
+                  </>
                 )}
               </div>
 
@@ -264,7 +230,7 @@ function ProjectCard({
                   href={deployment.publicUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-2 inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                  className="inline-flex items-center gap-1 text-xs text-violet-600 hover:text-violet-700 mt-2"
                 >
                   <span>↗</span>
                   <span className="truncate max-w-[220px]">
@@ -275,22 +241,19 @@ function ProjectCard({
             </div>
           </div>
 
-          {/* Right — actions */}
-          <div className="flex items-center gap-2 sm:shrink-0 sm:flex-col sm:items-end lg:flex-row lg:items-center">
+          {/* Right - Actions */}
+          <div className="flex items-center gap-2 flex-shrink-0">
             <Link
               href={`/dashboard/projects/${project._id}`}
-              className="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-medium text-slate-400 transition-colors hover:bg-white/[0.05] hover:text-white"
-              style={{ border: "1px solid rgba(255,255,255,0.07)" }}
+              className="px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-50 transition-colors"
             >
               Details
             </Link>
 
-            {/* View latest deployment logs */}
-            {deployment?._id && ( // ← Make sure this is checking the right property
+            {deployment?._id && (
               <Link
                 href={`/dashboard/deployments/${deployment._id}`}
-                className="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-medium text-slate-400 transition-colors hover:bg-white/[0.05] hover:text-white"
-                style={{ border: "1px solid rgba(255,255,255,0.07)" }}
+                className="px-3 py-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 rounded-lg hover:bg-gray-50 transition-colors"
               >
                 Logs
               </Link>
@@ -299,47 +262,34 @@ function ProjectCard({
             <button
               onClick={handleDeploy}
               disabled={deployLoading || !!isActive}
-              className="inline-flex h-8 items-center gap-1.5 rounded-lg px-3.5 text-xs font-semibold text-white transition-all hover:scale-[1.03] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
-              style={{
-                background: deployLoading
-                  ? "rgba(16,185,129,0.3)"
-                  : "linear-gradient(135deg, #10b981, #059669)",
-                boxShadow: deployLoading
-                  ? "none"
-                  : "0 0 16px rgba(16,185,129,0.25)",
-              }}
+              className="px-3.5 py-1.5 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {deployLoading ? (
-                <>
-                  <span className="h-3 w-3 animate-spin rounded-full border border-white/30 border-t-white" />
+                <span className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   Deploying
-                </>
+                </span>
               ) : isActive ? (
-                <>
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+                <span className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
                   In Progress
-                </>
+                </span>
               ) : (
-                <>▶ Deploy</>
+                "Deploy"
               )}
             </button>
 
             <button
               onClick={handleDelete}
               disabled={deleteLoading}
-              className="inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-xs font-medium transition-all hover:scale-[1.03] active:scale-[0.97] disabled:opacity-50"
-              style={{
-                background: confirmDelete
-                  ? "rgba(239,68,68,0.15)"
-                  : "transparent",
-                border: confirmDelete
-                  ? "1px solid rgba(239,68,68,0.4)"
-                  : "1px solid rgba(255,255,255,0.07)",
-                color: confirmDelete ? "#fca5a5" : "#6b7280",
-              }}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+                confirmDelete
+                  ? "bg-red-50 text-red-600 hover:bg-red-100"
+                  : "text-gray-400 hover:text-red-600 hover:bg-red-50"
+              }`}
             >
               {deleteLoading ? (
-                <span className="h-3 w-3 animate-spin rounded-full border border-red-400/30 border-t-red-400" />
+                <span className="w-3 h-3 border-2 border-red-400 border-t-red-600 rounded-full animate-spin" />
               ) : confirmDelete ? (
                 "Sure?"
               ) : (
@@ -353,7 +303,63 @@ function ProjectCard({
   );
 }
 
+// ─── Helper functions ─────────────────────────────────────────────────────────
+
+function getFrameworkIcon(framework: string): string {
+  const icons: Record<string, string> = {
+    "Next.js": "▲",
+    React: "⚛️",
+    Vue: "◈",
+    Nuxt: "◈",
+    Svelte: "◆",
+    Remix: "◎",
+    Astro: "◉",
+  };
+  return icons[framework] ?? "◇";
+}
+
+function EmptyState() {
+  return (
+    <div className="flex flex-col items-center justify-center py-24 text-center">
+      <div className="w-16 h-16 rounded-2xl bg-gray-50 flex items-center justify-center text-3xl mb-5">
+        ⬡
+      </div>
+      <h3 className="text-lg font-semibold text-gray-900 mb-2">
+        No projects yet
+      </h3>
+      <p className="text-sm text-gray-500 max-w-xs mb-6">
+        Connect a repository and deploy your first project in under a minute.
+      </p>
+      <Link
+        href="/dashboard/projects/new"
+        className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-gray-900 hover:bg-gray-800 rounded-xl transition-all"
+      >
+        <span>+</span> New Project
+      </Link>
+    </div>
+  );
+}
+
+function SkeletonCard() {
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-5 animate-pulse">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-3 flex-1">
+          <div className="w-10 h-10 rounded-lg bg-gray-100" />
+          <div className="flex-1 space-y-2">
+            <div className="h-4 w-36 bg-gray-100 rounded" />
+            <div className="h-3 w-52 bg-gray-100 rounded" />
+            <div className="h-3 w-32 bg-gray-100 rounded" />
+          </div>
+        </div>
+        <div className="h-8 w-20 bg-gray-100 rounded-lg" />
+      </div>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
+
 export default function ProjectsPage() {
   const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
@@ -368,14 +374,6 @@ export default function ProjectsPage() {
         apiRequest<Project[]>("/api/projects"),
         apiRequest<Deployment[]>("/api/projects/deployments"),
       ]);
-
-      // Debug: Log the first deployment to see its structure
-      if (deploymentData.length > 0) {
-        console.log("Sample deployment:", deploymentData[0]);
-        console.log("Deployment ID:", deploymentData[0]._id);
-        console.log("ProjectId structure:", deploymentData[0].projectId);
-      }
-
       setProjects(projectData);
       setDeployments(deploymentData);
     } catch (e) {
@@ -391,8 +389,6 @@ export default function ProjectsPage() {
 
   const deploymentByProject = useMemo(() => {
     const map = new Map<string, Deployment>();
-
-    // Sort deployments by createdAt descending to get the latest first
     const sortedDeployments = [...deployments].sort(
       (a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
@@ -400,26 +396,20 @@ export default function ProjectsPage() {
 
     for (const deployment of sortedDeployments) {
       let projectId: string;
-
-      // Handle different possible structures of projectId
       if (typeof deployment.projectId === "string") {
         projectId = deployment.projectId;
       } else if (
         deployment.projectId &&
         typeof deployment.projectId === "object"
       ) {
-        // MongoDB populated result has _id
         projectId = (deployment.projectId as any)._id;
       } else {
         continue;
       }
-
-      // Only set if not already present (this will keep the first/latest due to sorting)
       if (!map.has(projectId)) {
         map.set(projectId, deployment);
       }
     }
-
     return map;
   }, [deployments]);
 
@@ -428,18 +418,12 @@ export default function ProjectsPage() {
     await load();
   };
 
-  /**
-   * Trigger a deploy, then immediately navigate to the new deployment's
-   * detail page so the user can watch logs in real time.
-   */
   const onDeploy = async (projectId: string) => {
-    const newDeployment = await apiRequest<Deployment>(
-      `/api/projects/${projectId}/deploy`,
-      { method: "POST" },
-    );
-    router.push(`/dashboard/deployments`);
+    await apiRequest(`/api/projects/${projectId}/deploy`, { method: "POST" });
+    router.push("/dashboard/deployments");
   };
 
+  // Calculate stats
   const liveCount = [...deploymentByProject.values()].filter(
     (d) => d.status === "running",
   ).length;
@@ -447,69 +431,82 @@ export default function ProjectsPage() {
     ["queued", "cloning", "building", "starting"].includes(d.status),
   ).length;
 
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h2
-            className="text-[28px] font-bold tracking-tight text-white"
-            style={{
-              fontFamily: "'Sora', sans-serif",
-              letterSpacing: "-0.02em",
-            }}
-          >
-            Projects
-          </h2>
-          {!loading && projects.length > 0 && (
-            <p className="mt-0.5 text-sm text-slate-500">
-              {projects.length} project{projects.length !== 1 ? "s" : ""}
-              {liveCount > 0 && (
-                <span className="ml-2 text-emerald-400">
-                  · {liveCount} live
-                </span>
-              )}
-              {buildingCount > 0 && (
-                <span className="ml-2 text-blue-400">
-                  · {buildingCount} building
-                </span>
-              )}
-            </p>
-          )}
-        </div>
+  const stats = [
+    {
+      label: "Total projects",
+      value: String(projects.length),
+      sub: `${liveCount} live · ${buildingCount} building`,
+      subPositive: true,
+    },
+    {
+      label: "Deployments",
+      value: String(deployments.length),
+      sub: "All time",
+    },
+    {
+      label: "Success rate",
+      value: deployments.length
+        ? `${Math.round((deployments.filter((d) => d.status === "running").length / deployments.length) * 100)}%`
+        : "—",
+    },
+    {
+      label: "Active builds",
+      value: String(buildingCount),
+      sub: buildingCount > 0 ? "In progress" : "None",
+      subPositive: buildingCount === 0,
+    },
+  ];
 
+  return (
+    <div className="p-8 max-w-6xl">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="text-xl font-semibold text-gray-900">Projects</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Manage and monitor all your deployed projects
+          </p>
+        </div>
         <Link
           href="/dashboard/projects/new"
-          className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition-all hover:scale-[1.02] active:scale-[0.98]"
-          style={{
-            background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
-            boxShadow: "0 0 20px rgba(99,102,241,0.3)",
-          }}
+          className="inline-flex items-center gap-2 bg-gray-900 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors"
         >
-          <span className="text-base leading-none">+</span>
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <path
+              d="M7 1v12M1 7h12"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+            />
+          </svg>
           New Project
         </Link>
       </div>
 
+      {/* Stats Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+        {stats.map((s) => (
+          <StatCard key={s.label} {...s} />
+        ))}
+      </div>
+
+      {/* Error State */}
       {error && (
-        <div
-          className="flex items-center gap-3 rounded-xl p-4 text-sm"
-          style={{
-            background: "rgba(239,68,68,0.08)",
-            border: "1px solid rgba(239,68,68,0.2)",
-            color: "#fca5a5",
-          }}
-        >
-          <span className="shrink-0 text-base">⚠</span>
-          <span>{error}</span>
-          <button
-            onClick={load}
-            className="ml-auto shrink-0 rounded-lg px-3 py-1 text-xs font-medium text-red-300 hover:bg-red-500/10 transition-colors"
-          >
-            Retry
-          </button>
+        <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6">
+          <div className="flex items-center gap-3">
+            <span className="text-red-500">⚠️</span>
+            <span className="text-sm text-red-700">{error}</span>
+            <button
+              onClick={load}
+              className="ml-auto text-sm text-red-600 hover:text-red-800 font-medium"
+            >
+              Retry
+            </button>
+          </div>
         </div>
       )}
 
+      {/* Projects List */}
       {loading ? (
         <div className="space-y-3">
           {[0, 1, 2].map((i) => (

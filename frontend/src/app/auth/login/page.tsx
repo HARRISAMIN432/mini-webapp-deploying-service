@@ -161,8 +161,8 @@ export default function LoginPage() {
       const data = await apiRequest<{ tokens: { accessToken: string } }>(
         "/api/auth/login/totp",
         {
-        method: "POST",
-        body: JSON.stringify({ email: values.email, token: values.token }),
+          method: "POST",
+          body: JSON.stringify({ email: values.email, token: values.token }),
         },
       );
       setAccessToken(data.tokens.accessToken);
@@ -183,8 +183,8 @@ export default function LoginPage() {
       const data = await apiRequest<{ tokens: { accessToken: string } }>(
         "/api/auth/login/email-otp",
         {
-        method: "POST",
-        body: JSON.stringify({ email: values.email, otp: values.otp }),
+          method: "POST",
+          body: JSON.stringify({ email: values.email, otp: values.otp }),
         },
       );
       setAccessToken(data.tokens.accessToken);

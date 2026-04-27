@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
-import { Sora } from "next/font/google";
-
+import { Inter } from "next/font/google"; // ← Change to Inter
 import "./globals.css";
 
-const sora = Sora({
+// Change from Sora to Inter
+const inter = Inter({
   subsets: ["latin"],
-  variable: "--font-sora",
+  variable: "--font-inter", // ← Change variable name
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -27,12 +28,13 @@ export default function RootLayout({
           href="https://fonts.gstatic.com"
           crossOrigin="anonymous"
         />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap"
-          rel="stylesheet"
-        />
       </head>
-      <body style={{ margin: 0, background: "#050608" }}>{children}</body>
+      <body
+        className={inter.variable}
+        style={{ margin: 0, background: "#050608" }}
+      >
+        {children}
+      </body>
     </html>
   );
 }

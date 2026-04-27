@@ -3,14 +3,12 @@ import { AppError } from "../utils/errors";
 import { logger } from "../utils/logger";
 import { env } from "../config/env";
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const errorHandler = (
   err: Error,
   req: Request,
   res: Response,
   _next: NextFunction,
 ): void => {
-  // Operational errors (AppError) — safe to surface to client
   if (err instanceof AppError) {
     res.status(err.statusCode).json({
       success: false,
@@ -33,7 +31,6 @@ export const errorHandler = (
     return;
   }
 
-  // Mongoose validation
   if (err.name === "ValidationError") {
     res.status(422).json({
       success: false,
@@ -43,7 +40,6 @@ export const errorHandler = (
     return;
   }
 
-  // Unexpected errors — log full details, return generic message
   logger.error("Unhandled error", {
     message: err.message,
     stack: err.stack,

@@ -11,44 +11,19 @@ interface DeploymentHistoryProps {
   onRollback?: () => void;
 }
 
-const STATUS_STYLES: Record<string, { bg: string; text: string; dot: string }> =
-  {
-    running: {
-      bg: "bg-emerald-500/10 border-emerald-500/20",
-      text: "text-emerald-400",
-      dot: "bg-emerald-400",
-    },
-    queued: {
-      bg: "bg-blue-500/10 border-blue-500/20",
-      text: "text-blue-400",
-      dot: "bg-blue-400",
-    },
-    cloning: {
-      bg: "bg-indigo-500/10 border-indigo-500/20",
-      text: "text-indigo-400",
-      dot: "bg-indigo-400",
-    },
-    building: {
-      bg: "bg-violet-500/10 border-violet-500/20",
-      text: "text-violet-400",
-      dot: "bg-violet-400",
-    },
-    starting: {
-      bg: "bg-cyan-500/10 border-cyan-500/20",
-      text: "text-cyan-400",
-      dot: "bg-cyan-400",
-    },
-    stopped: {
-      bg: "bg-slate-500/10 border-slate-500/20",
-      text: "text-slate-400",
-      dot: "bg-slate-400",
-    },
-    failed: {
-      bg: "bg-red-500/10 border-red-500/20",
-      text: "text-red-400",
-      dot: "bg-red-400",
-    },
-  };
+const STATUS_CFG: Record<string, { bg: string; text: string; dot: string }> = {
+  running: { bg: "bg-green-50", text: "text-green-700", dot: "bg-green-500" },
+  queued: { bg: "bg-amber-50", text: "text-amber-700", dot: "bg-amber-400" },
+  cloning: { bg: "bg-blue-50", text: "text-blue-700", dot: "bg-blue-400" },
+  building: {
+    bg: "bg-violet-50",
+    text: "text-violet-700",
+    dot: "bg-violet-500",
+  },
+  starting: { bg: "bg-cyan-50", text: "text-cyan-700", dot: "bg-cyan-500" },
+  stopped: { bg: "bg-gray-100", text: "text-gray-600", dot: "bg-gray-400" },
+  failed: { bg: "bg-red-50", text: "text-red-700", dot: "bg-red-500" },
+};
 
 const TRIGGER_LABELS: Record<string, string> = {
   manual: "Manual",
@@ -58,35 +33,28 @@ const TRIGGER_LABELS: Record<string, string> = {
 };
 
 function StatusBadge({ status }: { status: string }) {
-  const s = STATUS_STYLES[status] ?? STATUS_STYLES.stopped;
+  const s = STATUS_CFG[status] ?? STATUS_CFG.stopped;
   const isActive = ["queued", "cloning", "building", "starting"].includes(
     status,
   );
+  const labels: Record<string, string> = {
+    running: "Live",
+    queued: "Queued",
+    cloning: "Cloning",
+    building: "Building",
+    starting: "Starting",
+    stopped: "Stopped",
+    failed: "Failed",
+  };
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${s.bg} ${s.text}`}
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${s.bg} ${s.text}`}
     >
       <span
-        className={`h-1.5 w-1.5 rounded-full ${s.dot}`}
-        style={isActive ? { animation: "pulse 1.5s infinite" } : {}}
+        className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${s.dot} ${isActive ? "animate-pulse" : ""}`}
       />
-      {status}
+      {labels[status] ?? status}
     </span>
-  );
-}
-
-function HealthBadge({ health }: { health: string }) {
-  const map: Record<string, { color: string; label: string }> = {
-    healthy: { color: "bg-emerald-400", label: "Healthy" },
-    unhealthy: { color: "bg-red-400", label: "Unhealthy" },
-    unknown: { color: "bg-slate-500", label: "Unknown" },
-  };
-  const cfg = map[health] ?? map.unknown;
-  return (
-    <span
-      className={`inline-block w-2 h-2 rounded-full ${cfg.color}`}
-      title={cfg.label}
-    />
   );
 }
 
@@ -157,80 +125,88 @@ export function DeploymentHistory({
   return (
     <div>
       {error && (
-        <div className="mb-3 rounded-xl border border-red-500/30 bg-red-500/8 px-4 py-2.5 text-xs text-red-300">
+        <div className="mb-4 flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <circle cx="7" cy="7" r="6" stroke="#EF4444" strokeWidth="1.5" />
+            <path
+              d="M7 4.5v3M7 9.5h.01"
+              stroke="#EF4444"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+          </svg>
           {error}
         </div>
       )}
 
-      <div className="rounded-xl border border-[#1a2540] overflow-hidden">
-        {/* Header */}
+      <div className="border border-gray-200 rounded-xl overflow-hidden">
+        {/* Table header */}
         <div
-          className="grid px-4 py-2.5 text-[10px] font-semibold uppercase tracking-widest text-slate-600 border-b border-[#1a2540] bg-[#080f1e]"
-          style={{ gridTemplateColumns: "90px 70px 80px 90px 70px 60px 1fr" }}
+          className="grid px-5 py-3 bg-gray-50 border-b border-gray-200 text-xs font-medium text-gray-400 uppercase tracking-wider"
+          style={{ gridTemplateColumns: "80px 90px 100px 110px 80px 1fr" }}
         >
           <span>Commit</span>
           <span>Branch</span>
           <span>Status</span>
           <span>Trigger</span>
           <span>Duration</span>
-          <span>Health</span>
           <span className="text-right">Actions</span>
         </div>
 
         {loading && (
-          <div className="px-4 py-8 text-center text-sm text-slate-600">
-            Loading…
+          <div className="px-5 py-10 text-center">
+            <div className="w-6 h-6 border-2 border-gray-200 border-t-violet-600 rounded-full animate-spin mx-auto" />
           </div>
         )}
 
         {!loading && data.deployments.length === 0 && (
-          <div className="px-4 py-8 text-center text-sm text-slate-600">
-            No deployments yet
+          <div className="px-5 py-10 text-center">
+            <p className="text-sm text-gray-500">No deployments yet</p>
           </div>
         )}
 
         {!loading &&
-          data.deployments.map((d) => (
+          data.deployments.map((d, i) => (
             <div
               key={d._id}
-              className="grid px-4 py-3 border-b border-[#111c30] last:border-0 items-center gap-3 hover:bg-[#0c1625] transition-colors"
-              style={{
-                gridTemplateColumns: "90px 70px 80px 90px 70px 60px 1fr",
-              }}
+              className={`grid px-5 py-3.5 items-center gap-3 hover:bg-gray-50/60 transition-colors ${
+                i < data.deployments.length - 1
+                  ? "border-b border-gray-100"
+                  : ""
+              }`}
+              style={{ gridTemplateColumns: "80px 90px 100px 110px 80px 1fr" }}
             >
               <span
-                className="font-mono text-xs text-indigo-400 cursor-pointer hover:text-indigo-300 truncate"
+                className="font-mono text-xs text-violet-600 cursor-pointer hover:text-violet-700 truncate"
                 title={d.commitHash ?? "—"}
                 onClick={() => router.push(`/dashboard/deployments/${d._id}`)}
               >
                 {d.commitHash?.slice(0, 7) ?? "—"}
               </span>
 
-              <span className="text-xs text-slate-500 font-mono truncate">
+              <span className="text-xs text-gray-500 font-mono truncate">
                 {d.branch}
               </span>
 
               <StatusBadge status={d.status} />
 
-              <span className="text-[10px] text-slate-500">
+              <span className="text-xs text-gray-500">
                 {TRIGGER_LABELS[d.triggerSource] ?? d.triggerSource}
               </span>
 
-              <span className="text-xs text-slate-500">
-                {formatDuration(d)}
-              </span>
-
-              <div className="flex items-center gap-2">
-                <HealthBadge health={d.healthStatus} />
-                <span className="text-[10px] text-slate-600">
-                  {timeAgo(d.createdAt)}
+              <div>
+                <span className="text-xs text-gray-700 font-medium">
+                  {formatDuration(d)}
                 </span>
+                <p className="text-[10px] text-gray-400 mt-0.5">
+                  {timeAgo(d.createdAt)}
+                </p>
               </div>
 
               <div className="flex items-center justify-end gap-1.5">
                 <button
                   onClick={() => router.push(`/dashboard/deployments/${d._id}`)}
-                  className="px-2 py-1 text-[10px] rounded-lg border border-[#1e293b] text-slate-500 hover:text-indigo-400 hover:border-indigo-500/30 transition-all"
+                  className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-gray-200 text-gray-500 hover:text-gray-800 hover:border-gray-300 transition-all"
                 >
                   Logs
                 </button>
@@ -240,7 +216,7 @@ export function DeploymentHistory({
                   <button
                     onClick={() => handleRollback(d._id)}
                     disabled={!!rolling}
-                    className="px-2 py-1 text-[10px] rounded-lg border border-[#1e293b] text-slate-500 hover:text-amber-400 hover:border-amber-500/30 transition-all disabled:opacity-40"
+                    className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-gray-200 text-gray-500 hover:text-amber-600 hover:border-amber-200 hover:bg-amber-50 transition-all disabled:opacity-40"
                   >
                     {rolling === d._id ? "…" : "Rollback"}
                   </button>
@@ -253,7 +229,7 @@ export function DeploymentHistory({
       {/* Pagination */}
       {data.pagination.totalPages > 1 && (
         <div className="mt-4 flex items-center justify-between">
-          <span className="text-xs text-slate-600">
+          <span className="text-xs text-gray-400">
             Page {page} of {data.pagination.totalPages} ·{" "}
             {data.pagination.total} total
           </span>
@@ -261,26 +237,20 @@ export function DeploymentHistory({
             <button
               onClick={() => loadPage(page - 1)}
               disabled={page <= 1 || loading}
-              className="px-3 py-1.5 text-xs rounded-lg border border-[#1e293b] text-slate-500 hover:text-white hover:border-slate-600 disabled:opacity-30 transition-all"
+              className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 text-gray-500 hover:text-gray-800 hover:border-gray-300 disabled:opacity-40 transition-all"
             >
               ← Prev
             </button>
             <button
               onClick={() => loadPage(page + 1)}
               disabled={page >= data.pagination.totalPages || loading}
-              className="px-3 py-1.5 text-xs rounded-lg border border-[#1e293b] text-slate-500 hover:text-white hover:border-slate-600 disabled:opacity-30 transition-all"
+              className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 text-gray-500 hover:text-gray-800 hover:border-gray-300 disabled:opacity-40 transition-all"
             >
               Next →
             </button>
           </div>
         </div>
       )}
-
-      <style
-        dangerouslySetInnerHTML={{
-          __html: `@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }`,
-        }}
-      />
     </div>
   );
 }

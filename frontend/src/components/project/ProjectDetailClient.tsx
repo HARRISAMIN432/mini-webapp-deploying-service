@@ -31,51 +31,26 @@ interface Props {
   initialEnvVars: MaskedEnvVar[];
 }
 
-// ─── Status helpers ───────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const STATUS_CFG: Record<string, { ring: string; text: string; dot: string }> =
-  {
-    running: {
-      ring: "border-emerald-500/25 bg-emerald-500/8",
-      text: "text-emerald-400",
-      dot: "bg-emerald-400",
-    },
-    queued: {
-      ring: "border-blue-500/25 bg-blue-500/8",
-      text: "text-blue-400",
-      dot: "bg-blue-400",
-    },
-    cloning: {
-      ring: "border-indigo-500/25 bg-indigo-500/8",
-      text: "text-indigo-400",
-      dot: "bg-indigo-400",
-    },
-    building: {
-      ring: "border-violet-500/25 bg-violet-500/8",
-      text: "text-violet-400",
-      dot: "bg-violet-400",
-    },
-    starting: {
-      ring: "border-cyan-500/25 bg-cyan-500/8",
-      text: "text-cyan-400",
-      dot: "bg-cyan-400",
-    },
-    stopped: {
-      ring: "border-slate-500/25 bg-slate-500/8",
-      text: "text-slate-400",
-      dot: "bg-slate-500",
-    },
-    failed: {
-      ring: "border-red-500/25 bg-red-500/8",
-      text: "text-red-400",
-      dot: "bg-red-400",
-    },
-  };
+const STATUS_CFG: Record<string, { bg: string; dot: string; text: string }> = {
+  running: { bg: "bg-green-50", dot: "bg-green-500", text: "text-green-700" },
+  queued: { bg: "bg-amber-50", dot: "bg-amber-400", text: "text-amber-700" },
+  cloning: { bg: "bg-blue-50", dot: "bg-blue-400", text: "text-blue-700" },
+  building: {
+    bg: "bg-violet-50",
+    dot: "bg-violet-500",
+    text: "text-violet-700",
+  },
+  starting: { bg: "bg-cyan-50", dot: "bg-cyan-500", text: "text-cyan-700" },
+  stopped: { bg: "bg-gray-100", dot: "bg-gray-400", text: "text-gray-600" },
+  failed: { bg: "bg-red-50", dot: "bg-red-500", text: "text-red-700" },
+};
 
 const HEALTH_CFG: Record<string, { dot: string; label: string }> = {
-  healthy: { dot: "bg-emerald-400", label: "Healthy" },
-  unhealthy: { dot: "bg-red-400", label: "Unhealthy" },
-  unknown: { dot: "bg-slate-500", label: "Checking..." },
+  healthy: { dot: "bg-green-500", label: "Healthy" },
+  unhealthy: { dot: "bg-red-500", label: "Unhealthy" },
+  unknown: { dot: "bg-gray-400", label: "Checking" },
 };
 
 const TRIGGER_LABELS: Record<string, string> = {
@@ -90,15 +65,23 @@ const ACTIVE = new Set(["queued", "cloning", "building", "starting"]);
 function StatusBadge({ status }: { status: string }) {
   const cfg = STATUS_CFG[status] ?? STATUS_CFG.stopped;
   const pulse = ACTIVE.has(status);
+  const labels: Record<string, string> = {
+    running: "Live",
+    queued: "Queued",
+    cloning: "Cloning",
+    building: "Building",
+    starting: "Starting",
+    stopped: "Stopped",
+    failed: "Failed",
+  };
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${cfg.ring} ${cfg.text}`}
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${cfg.bg} ${cfg.text}`}
     >
       <span
-        className={`h-1.5 w-1.5 rounded-full flex-shrink-0 ${cfg.dot}`}
-        style={pulse ? { animation: "pulse 1.4s ease-in-out infinite" } : {}}
+        className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${cfg.dot} ${pulse ? "animate-pulse" : ""}`}
       />
-      {status}
+      {labels[status] ?? status}
     </span>
   );
 }
@@ -117,14 +100,16 @@ function timeAgo(dateStr?: string | null): string {
 function Toast({ msg, type }: { msg: string; type: "ok" | "err" }) {
   return (
     <div
-      className={`fixed bottom-6 right-6 z-50 flex items-center gap-2.5 rounded-xl border px-4 py-3 text-sm shadow-2xl ${
+      className={`fixed bottom-6 right-6 z-50 flex items-center gap-2.5 rounded-xl border px-4 py-3 text-sm shadow-xl animate-in slide-in-from-bottom-2 ${
         type === "ok"
-          ? "border-emerald-500/30 bg-[#0a1a14] text-emerald-300"
-          : "border-red-500/30 bg-[#1a0a0a] text-red-300"
+          ? "border-green-200 bg-white text-green-700 shadow-green-100"
+          : "border-red-200 bg-white text-red-700 shadow-red-100"
       }`}
-      style={{ animation: "toastIn .18s ease" }}
     >
-      {type === "ok" ? "✓" : "✕"} {msg}
+      <span
+        className={`w-2 h-2 rounded-full flex-shrink-0 ${type === "ok" ? "bg-green-500" : "bg-red-500"}`}
+      />
+      {msg}
     </div>
   );
 }
@@ -139,17 +124,25 @@ function StatCard({
   sub?: string;
 }) {
   return (
-    <div className="bg-[#0c1425] border border-[#1a2540] rounded-xl px-4 py-3">
-      <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-600 mb-1">
-        {label}
-      </p>
-      <p className="text-sm font-bold text-white">{value}</p>
-      {sub && <p className="text-[10px] text-slate-600 mt-0.5">{sub}</p>}
+    <div className="bg-white border border-gray-200 rounded-xl px-4 py-3.5">
+      <p className="text-xs text-gray-500 font-medium mb-1">{label}</p>
+      <p className="text-lg font-bold text-gray-900">{value}</p>
+      {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
     </div>
   );
 }
 
-// ─── Main ─────────────────────────────────────────────────────────────────────
+function frameworkIcon(fw: string): string {
+  const f = fw.toLowerCase();
+  if (f.includes("next")) return "▲";
+  if (f.includes("vite") || f.includes("react")) return "⚡";
+  if (f.includes("python") || f.includes("flask") || f.includes("django"))
+    return "🐍";
+  if (f.includes("node") || f.includes("express")) return "⬡";
+  return "◈";
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
 
 export function ProjectDetailClient({
   projectId,
@@ -168,10 +161,10 @@ export function ProjectDetailClient({
 
   if (!details) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-slate-400">Loading project details...</p>
+          <div className="w-10 h-10 border-2 border-gray-200 border-t-violet-600 rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-sm text-gray-500">Loading project…</p>
         </div>
       </div>
     );
@@ -225,45 +218,39 @@ export function ProjectDetailClient({
   const isRunning = latestDeployment?.status === "running";
 
   return (
-    <div className="min-h-screen" style={{ fontFamily: "'Sora', sans-serif" }}>
+    <div className="p-8 max-w-5xl">
       {toast && <Toast {...toast} />}
 
-      {/* ─── Breadcrumb ───────────────────────────────────────────────────── */}
-      <nav className="flex items-center gap-2 mb-6 text-xs">
+      {/* Breadcrumb */}
+      <nav className="flex items-center gap-2 mb-6 text-sm">
         <button
           onClick={() => router.push("/dashboard/projects")}
-          className="text-slate-600 hover:text-slate-400 transition-colors"
+          className="text-gray-400 hover:text-gray-700 transition-colors font-medium"
         >
           Projects
         </button>
-        <span className="text-slate-800">›</span>
-        <span className="text-slate-400">{project.name}</span>
+        <span className="text-gray-300">/</span>
+        <span className="text-gray-900 font-medium">{project.name}</span>
       </nav>
 
-      {/* ─── Header card ──────────────────────────────────────────────────── */}
-      <div className="bg-[#0c1425] border border-[#1a2540] rounded-2xl p-5 mb-5">
+      {/* Header card */}
+      <div className="bg-white border border-gray-200 rounded-xl p-5 mb-5">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div className="flex items-start gap-3.5">
-            <div className="w-11 h-11 rounded-xl border border-[#1a2540] bg-[#111c30] flex items-center justify-center text-xl flex-shrink-0">
-              {project.framework.toLowerCase().includes("next")
-                ? "▲"
-                : project.framework.toLowerCase().includes("vite") ||
-                    project.framework.toLowerCase().includes("react")
-                  ? "⚡"
-                  : project.framework.toLowerCase().includes("python")
-                    ? "🐍"
-                    : "⬡"}
+            {/* Framework icon */}
+            <div className="w-10 h-10 rounded-xl border border-gray-200 bg-gray-50 flex items-center justify-center text-lg flex-shrink-0">
+              {frameworkIcon(project.framework)}
             </div>
             <div>
-              <div className="flex flex-wrap items-center gap-2.5">
-                <h1 className="text-lg font-bold text-white leading-tight">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-base font-semibold text-gray-900">
                   {project.name}
                 </h1>
                 {latestDeployment && (
                   <StatusBadge status={latestDeployment.status} />
                 )}
                 {isRunning && (
-                  <span className="flex items-center gap-1.5 text-[10px] text-slate-500">
+                  <span className="flex items-center gap-1 text-xs text-gray-500">
                     <span
                       className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${health.dot}`}
                     />
@@ -275,40 +262,48 @@ export function ProjectDetailClient({
                 href={project.repoUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-0.5 block text-xs font-mono text-slate-500 hover:text-indigo-400 transition-colors truncate max-w-xs sm:max-w-sm"
+                className="mt-0.5 text-xs text-gray-400 hover:text-violet-600 transition-colors font-mono block truncate max-w-xs"
               >
                 {project.repoUrl.replace("https://github.com/", "⎇ ")}
               </a>
-              <div className="flex flex-wrap items-center gap-3 mt-1.5">
-                <span className="text-[10px] text-slate-600">
-                  {project.framework} ·{" "}
-                  <span className="text-slate-500">{project.branch}</span>
+              <div className="flex flex-wrap items-center gap-2.5 mt-1.5">
+                <span className="text-xs text-gray-400">
+                  {project.framework}
+                </span>
+                <span className="text-gray-200">·</span>
+                <span className="text-xs text-gray-400 font-mono">
+                  {project.branch}
                 </span>
                 {latestDeployment?.commitHash && (
-                  <span className="text-[10px] font-mono text-slate-600">
-                    @ {latestDeployment.commitHash.slice(0, 7)}
-                  </span>
+                  <>
+                    <span className="text-gray-200">·</span>
+                    <span className="text-xs font-mono text-gray-400">
+                      {latestDeployment.commitHash.slice(0, 7)}
+                    </span>
+                  </>
                 )}
-                <span className="text-[10px] text-slate-600">
+                <span className="text-gray-200">·</span>
+                <span className="text-xs text-gray-400">
                   Created {timeAgo(project.createdAt)}
                 </span>
                 {project.autoDeploy && (
-                  <span className="flex items-center gap-1 text-[10px] text-emerald-500">
-                    <span className="w-1 h-1 rounded-full bg-emerald-500" />{" "}
-                    Auto-deploy on
+                  <span className="inline-flex items-center gap-1 text-xs text-green-600 font-medium">
+                    <span className="w-1 h-1 rounded-full bg-green-500" />{" "}
+                    Auto-deploy
                   </span>
                 )}
               </div>
             </div>
           </div>
 
+          {/* Actions */}
           <div className="flex items-center gap-2 flex-shrink-0">
             {domains[0]?.url && (
               <a
                 href={domains[0].url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1.5 px-3 py-2 text-xs rounded-xl border border-[#1e293b] text-slate-400 hover:text-indigo-400 hover:border-indigo-500/30 transition-all"
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border border-gray-200 text-gray-600 hover:border-gray-300 hover:text-gray-900 transition-all"
               >
                 <svg
                   width="11"
@@ -328,11 +323,11 @@ export function ProjectDetailClient({
             <button
               onClick={handleRedeploy}
               disabled={deploying}
-              className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white transition-all hover:-translate-y-px hover:shadow-[0_6px_20px_rgba(99,102,241,0.25)] disabled:opacity-60 active:translate-y-0"
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-lg bg-gray-900 hover:bg-gray-700 text-white transition-all disabled:opacity-60"
             >
               {deploying ? (
                 <>
-                  <span className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" />{" "}
+                  <span className="w-3 h-3 border border-white/40 border-t-white rounded-full animate-spin" />
                   Queuing…
                 </>
               ) : (
@@ -348,7 +343,7 @@ export function ProjectDetailClient({
                     <polyline points="23 4 23 10 17 10" />
                     <polyline points="1 20 1 14 7 14" />
                     <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-                  </svg>{" "}
+                  </svg>
                   Redeploy
                 </>
               )}
@@ -356,16 +351,15 @@ export function ProjectDetailClient({
           </div>
         </div>
 
+        {/* Live URL bar */}
         {domains[0]?.url && (
-          <div className="mt-4 pt-4 border-t border-[#111c30] flex items-center gap-3 flex-wrap">
-            <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-700">
-              Live at
-            </span>
+          <div className="mt-4 pt-4 border-t border-gray-100 flex items-center gap-3 flex-wrap">
+            <span className="text-xs text-gray-400 font-medium">Live at</span>
             <a
               href={domains[0].url}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs font-mono text-indigo-400 hover:text-indigo-300 transition-colors"
+              className="text-xs font-mono text-violet-600 hover:text-violet-700 transition-colors"
             >
               {domains[0].url}
             </a>
@@ -374,7 +368,7 @@ export function ProjectDetailClient({
                 navigator.clipboard.writeText(domains[0].url);
                 fire("URL copied");
               }}
-              className="text-[10px] px-2 py-0.5 rounded-md border border-[#1e293b] text-slate-600 hover:text-slate-400 transition-all"
+              className="text-xs px-2 py-0.5 rounded-md border border-gray-200 text-gray-500 hover:text-gray-700 hover:border-gray-300 transition-all"
             >
               Copy
             </button>
@@ -382,28 +376,32 @@ export function ProjectDetailClient({
         )}
       </div>
 
-      {/* ─── Tabs ─────────────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-0.5 overflow-x-auto pb-0.5 mb-5 scrollbar-hide">
+      {/* Tabs */}
+      <div className="flex items-center gap-0.5 overflow-x-auto mb-5 border-b border-gray-200 scrollbar-hide">
         {TABS.map((t) => {
           const active = tab === t.id;
           return (
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              className={`flex items-center gap-1.5 px-3.5 py-2 text-[11px] font-medium rounded-xl whitespace-nowrap transition-all ${
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 text-sm font-medium whitespace-nowrap border-b-2 transition-all -mb-px ${
                 active
                   ? t.danger
-                    ? "bg-red-500/10 text-red-400 border border-red-500/20"
-                    : "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
+                    ? "border-red-500 text-red-600"
+                    : "border-gray-900 text-gray-900"
                   : t.danger
-                    ? "text-red-700 hover:text-red-500 border border-transparent"
-                    : "text-slate-600 hover:text-slate-400 border border-transparent"
+                    ? "border-transparent text-red-400 hover:text-red-600"
+                    : "border-transparent text-gray-500 hover:text-gray-800"
               }`}
             >
               {t.label}
               {t.badge !== undefined && Number(t.badge) > 0 && (
                 <span
-                  className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${active ? "bg-indigo-500/20 text-indigo-400" : "bg-[#111c30] text-slate-600"}`}
+                  className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${
+                    active
+                      ? "bg-gray-900 text-white"
+                      : "bg-gray-100 text-gray-600"
+                  }`}
                 >
                   {t.badge}
                 </span>
@@ -413,9 +411,7 @@ export function ProjectDetailClient({
         })}
       </div>
 
-      {/* ─── Tab content ──────────────────────────────────────────────────── */}
-
-      {/* OVERVIEW */}
+      {/* ─── OVERVIEW ─────────────────────────────────────────────────────── */}
       {tab === "overview" && (
         <div className="space-y-4">
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -436,14 +432,14 @@ export function ProjectDetailClient({
           </div>
 
           {latestDeployment ? (
-            <div className="bg-[#0c1425] border border-[#1a2540] rounded-2xl p-5">
+            <div className="bg-white border border-gray-200 rounded-xl p-5">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-[10px] font-semibold uppercase tracking-widest text-slate-600">
+                <h2 className="text-sm font-semibold text-gray-900">
                   Latest Deployment
                 </h2>
                 <StatusBadge status={latestDeployment.status} />
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-3 text-xs">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-4 text-sm">
                 {[
                   {
                     l: "Commit",
@@ -479,9 +475,9 @@ export function ProjectDetailClient({
                   },
                 ].map((row) => (
                   <div key={row.l}>
-                    <p className="text-[10px] text-slate-600 mb-0.5">{row.l}</p>
+                    <p className="text-xs text-gray-400 mb-1">{row.l}</p>
                     <p
-                      className={`text-slate-300 ${row.mono ? "font-mono" : ""}`}
+                      className={`text-sm text-gray-800 ${row.mono ? "font-mono" : "font-medium"}`}
                     >
                       {row.v}
                     </p>
@@ -489,58 +485,61 @@ export function ProjectDetailClient({
                 ))}
               </div>
               {latestDeployment.errorMessage && (
-                <div className="mt-4 rounded-lg border border-red-500/20 bg-red-500/6 px-3 py-2.5 text-xs text-red-300 font-mono break-all">
+                <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs text-red-700 font-mono break-all">
                   {latestDeployment.errorMessage}
                 </div>
               )}
-              <div className="mt-4 pt-4 border-t border-[#111c30]">
+              <div className="mt-4 pt-4 border-t border-gray-100">
                 <button
                   onClick={() =>
                     router.push(
                       `/dashboard/deployments/${latestDeployment._id}`,
                     )
                   }
-                  className="px-3 py-1.5 text-xs rounded-lg border border-[#1e293b] text-slate-500 hover:text-indigo-400 hover:border-indigo-500/30 transition-all"
+                  className="text-xs font-medium text-gray-500 hover:text-gray-900 transition-colors"
                 >
                   View Logs →
                 </button>
               </div>
             </div>
           ) : (
-            <div className="bg-[#0c1425] border border-[#1a2540] rounded-2xl px-5 py-12 text-center">
-              <div className="w-12 h-12 rounded-2xl bg-[#111c30] border border-[#1a2540] mx-auto mb-4 flex items-center justify-center text-2xl">
+            <div className="bg-white border border-gray-200 rounded-xl px-5 py-14 text-center">
+              <div className="w-12 h-12 rounded-xl bg-gray-50 border border-gray-200 mx-auto mb-4 flex items-center justify-center text-2xl">
                 🚀
               </div>
-              <p className="text-sm text-slate-500 mb-1">No deployments yet</p>
-              <p className="text-xs text-slate-700 mb-4">
+              <p className="text-sm font-medium text-gray-700 mb-1">
+                No deployments yet
+              </p>
+              <p className="text-xs text-gray-400 mb-4">
                 Push your first deployment to get started
               </p>
               <button
                 onClick={handleRedeploy}
                 disabled={deploying}
-                className="px-4 py-2 text-xs font-semibold rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white transition-all disabled:opacity-60"
+                className="px-4 py-2 text-xs font-semibold rounded-lg bg-gray-900 hover:bg-gray-700 text-white transition-all disabled:opacity-60"
               >
                 Deploy Now
               </button>
             </div>
           )}
 
-          <div className="bg-[#0c1425] border border-[#1a2540] rounded-2xl p-5">
-            <h2 className="text-[10px] font-semibold uppercase tracking-widest text-slate-600 mb-3">
+          {/* Build config */}
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <h2 className="text-sm font-semibold text-gray-900 mb-3">
               Build Configuration
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {[
                 { l: "Install", v: project.installCommand },
                 { l: "Build", v: project.buildCommand },
-                { l: "Root", v: project.rootDirectory },
+                { l: "Root Dir", v: project.rootDirectory },
               ].map((c) => (
                 <div
                   key={c.l}
-                  className="bg-[#060d1a] border border-[#1e293b] rounded-xl px-3.5 py-2.5"
+                  className="bg-gray-50 border border-gray-100 rounded-lg px-3.5 py-2.5"
                 >
-                  <p className="text-[10px] text-slate-600 mb-1">{c.l}</p>
-                  <p className="text-xs font-mono text-slate-300 truncate">
+                  <p className="text-xs text-gray-400 mb-1">{c.l}</p>
+                  <p className="text-xs font-mono text-gray-700 truncate">
                     {c.v}
                   </p>
                 </div>
@@ -550,199 +549,237 @@ export function ProjectDetailClient({
         </div>
       )}
 
-      {/* DEPLOYMENTS */}
+      {/* ─── DEPLOYMENTS ──────────────────────────────────────────────────── */}
       {tab === "deployments" && (
-        <div className="bg-[#0c1425] border border-[#1a2540] rounded-2xl p-5">
-          <h2 className="text-[10px] font-semibold uppercase tracking-widest text-slate-600 mb-4">
-            Deployment History
-          </h2>
-          <DeploymentHistory
-            projectId={projectId}
-            initialData={initialDeployments}
-            onRollback={refresh}
-          />
-        </div>
-      )}
-
-      {/* ENV VARS */}
-      {tab === "env" && (
-        <div className="bg-[#0c1425] border border-[#1a2540] rounded-2xl p-5">
-          <div className="mb-4">
-            <h2 className="text-[10px] font-semibold uppercase tracking-widest text-slate-600">
-              Environment Variables
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100">
+            <h2 className="text-sm font-semibold text-gray-900">
+              Deployment History
             </h2>
-            <p className="text-[11px] text-slate-700 mt-0.5">
-              Values are masked — never returned in plaintext via the API.
-            </p>
           </div>
-          <EnvTable
-            projectId={projectId}
-            initialVars={initialEnvVars}
-            onChanged={refresh}
-          />
-          <div className="mt-4 pt-4 border-t border-[#111c30]">
-            <button
-              onClick={handleRedeploy}
-              disabled={deploying}
-              className="flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white transition-all disabled:opacity-60"
-            >
-              <svg
-                width="11"
-                height="11"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-              >
-                <polyline points="23 4 23 10 17 10" />
-                <polyline points="1 20 1 14 7 14" />
-                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-              </svg>
-              {deploying ? "Queuing…" : "Redeploy to Apply Changes"}
-            </button>
+          <div className="p-5">
+            <DeploymentHistory
+              projectId={projectId}
+              initialData={initialDeployments}
+              onRollback={refresh}
+            />
           </div>
         </div>
       )}
 
-      {/* DOMAINS */}
+      {/* ─── ENV VARS ─────────────────────────────────────────────────────── */}
+      {tab === "env" && (
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900">
+                Environment Variables
+              </h2>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Values are masked — never returned in plaintext via the API.
+              </p>
+            </div>
+          </div>
+          <div className="p-5">
+            <EnvTable
+              projectId={projectId}
+              initialVars={initialEnvVars}
+              onChanged={refresh}
+            />
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <button
+                onClick={handleRedeploy}
+                disabled={deploying}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-lg bg-gray-900 hover:bg-gray-700 text-white transition-all disabled:opacity-60"
+              >
+                <svg
+                  width="11"
+                  height="11"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                >
+                  <polyline points="23 4 23 10 17 10" />
+                  <polyline points="1 20 1 14 7 14" />
+                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                </svg>
+                {deploying ? "Queuing…" : "Redeploy to Apply"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── DOMAINS ──────────────────────────────────────────────────────── */}
       {tab === "domains" && (
         <div className="space-y-4">
-          <div className="bg-[#0c1425] border border-[#1a2540] rounded-2xl p-5">
-            <h2 className="text-[10px] font-semibold uppercase tracking-widest text-slate-600 mb-4">
-              Active Domains
-            </h2>
-            {domains.length === 0 ? (
-              <div className="py-10 text-center">
-                <p className="text-sm text-slate-600">
-                  No domain assigned yet.
-                </p>
-                <p className="text-xs text-slate-700 mt-1">
-                  Deploy the project to receive a subdomain.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {domains.map((d: any) => (
-                  <div
-                    key={d.subdomain}
-                    className="flex items-center justify-between bg-[#060d1a] border border-[#1e293b] rounded-xl px-4 py-3.5 gap-3"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span
-                        className={`w-2 h-2 rounded-full flex-shrink-0 ${isRunning ? "bg-emerald-400" : "bg-slate-500"}`}
-                        style={
-                          isRunning ? { animation: "pulse 2s infinite" } : {}
-                        }
+          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100">
+              <h2 className="text-sm font-semibold text-gray-900">
+                Active Domains
+              </h2>
+            </div>
+            <div className="p-5">
+              {domains.length === 0 ? (
+                <div className="py-10 text-center">
+                  <div className="w-10 h-10 rounded-xl bg-gray-50 border border-gray-200 mx-auto mb-3 flex items-center justify-center">
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <circle
+                        cx="8"
+                        cy="8"
+                        r="6.5"
+                        stroke="#D1D5DB"
+                        strokeWidth="1.5"
                       />
-                      <div className="min-w-0">
+                      <path
+                        d="M8 1.5C8 1.5 5.5 4.5 5.5 8C5.5 11.5 8 14.5 8 14.5"
+                        stroke="#D1D5DB"
+                        strokeWidth="1.5"
+                      />
+                      <path
+                        d="M8 1.5C8 1.5 10.5 4.5 10.5 8C10.5 11.5 8 14.5 8 14.5"
+                        stroke="#D1D5DB"
+                        strokeWidth="1.5"
+                      />
+                      <path
+                        d="M1.5 8H14.5"
+                        stroke="#D1D5DB"
+                        strokeWidth="1.5"
+                      />
+                    </svg>
+                  </div>
+                  <p className="text-sm text-gray-500">
+                    No domain assigned yet
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Deploy the project to receive a subdomain.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {domains.map((d: any) => (
+                    <div
+                      key={d.subdomain}
+                      className="flex items-center justify-between bg-gray-50 border border-gray-100 rounded-xl px-4 py-3.5 gap-3"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span
+                          className={`w-2 h-2 rounded-full flex-shrink-0 ${isRunning ? "bg-green-500 animate-pulse" : "bg-gray-300"}`}
+                        />
+                        <div className="min-w-0">
+                          <a
+                            href={d.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm font-mono text-violet-600 hover:text-violet-700 transition-colors block truncate"
+                          >
+                            {d.url}
+                          </a>
+                          <p className="text-xs text-gray-400 mt-0.5">
+                            {d.isPrimary ? "Primary · auto-assigned" : "Custom"}{" "}
+                            · port {d.port}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(d.url);
+                            fire("URL copied");
+                          }}
+                          className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-gray-200 text-gray-500 hover:text-gray-700 hover:border-gray-300 transition-all"
+                        >
+                          Copy
+                        </button>
                         <a
                           href={d.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-sm font-mono text-indigo-400 hover:text-indigo-300 transition-colors block truncate"
+                          className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-gray-200 text-gray-500 hover:text-violet-600 hover:border-violet-200 transition-all"
                         >
-                          {d.url}
+                          Open ↗
                         </a>
-                        <p className="text-[10px] text-slate-600 mt-0.5">
-                          {d.isPrimary ? "Primary · auto-assigned" : "Custom"} ·
-                          port {d.port}
-                        </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(d.url);
-                          fire("URL copied");
-                        }}
-                        className="px-2.5 py-1.5 text-[10px] font-medium rounded-lg border border-[#1e293b] text-slate-500 hover:text-slate-300 hover:border-slate-600 transition-all"
-                      >
-                        Copy
-                      </button>
-                      <a
-                        href={d.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-2.5 py-1.5 text-[10px] font-medium rounded-lg border border-[#1e293b] text-slate-500 hover:text-indigo-400 hover:border-indigo-500/30 transition-all"
-                      >
-                        Open ↗
-                      </a>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-          <div className="bg-[#0c1425] border border-[#1a2540] rounded-2xl p-5">
-            <h2 className="text-[10px] font-semibold uppercase tracking-widest text-slate-600 mb-3">
+          <div className="bg-white border border-gray-200 rounded-xl p-5">
+            <h2 className="text-sm font-semibold text-gray-900 mb-2">
               How subdomains work
             </h2>
-            <p className="text-xs text-slate-600 leading-relaxed">
+            <p className="text-sm text-gray-500 leading-relaxed">
               ShipStack assigns{" "}
-              <code className="text-slate-400 bg-[#060d1a] px-1.5 py-0.5 rounded">
+              <code className="text-xs bg-gray-100 px-1.5 py-0.5 rounded text-gray-700 font-mono">
                 {project.name.toLowerCase().replace(/\s+/g, "-")}.localhost
               </code>{" "}
-              via nginx reverse proxy. Subdomain derives from your project name
-              — rename in Settings to change it. Custom domain support (DNS +
-              TLS) is planned for Phase 6.
+              via nginx reverse proxy. Rename your project in Settings to change
+              the subdomain. Custom domain support (DNS + TLS) is planned for a
+              future release.
             </p>
           </div>
         </div>
       )}
 
-      {/* METRICS */}
+      {/* ─── METRICS ──────────────────────────────────────────────────────── */}
       {tab === "metrics" && (
-        <div className="bg-[#0c1425] border border-[#1a2540] rounded-2xl p-5">
-          <div className="flex items-center justify-between mb-4">
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
             <div>
-              <h2 className="text-[10px] font-semibold uppercase tracking-widest text-slate-600">
+              <h2 className="text-sm font-semibold text-gray-900">
                 Runtime Metrics
               </h2>
-              <p className="text-[11px] text-slate-700 mt-0.5">
+              <p className="text-xs text-gray-400 mt-0.5">
                 Live from Docker stats — auto-refreshes every 30s
               </p>
             </div>
             {isRunning && (
-              <span className="flex items-center gap-1.5 text-[10px] text-emerald-400 font-medium">
-                <span
-                  className="w-1.5 h-1.5 rounded-full bg-emerald-400"
-                  style={{ animation: "pulse 1.5s infinite" }}
-                />
+              <span className="inline-flex items-center gap-1.5 text-xs text-green-600 font-medium">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
                 Live
               </span>
             )}
           </div>
-          <MetricsCards
-            projectId={projectId}
-            lastDeployAt={latestDeployment?.createdAt}
-          />
+          <div className="p-5">
+            <MetricsCards
+              projectId={projectId}
+              lastDeployAt={latestDeployment?.createdAt}
+            />
+          </div>
         </div>
       )}
 
-      {/* SETTINGS */}
+      {/* ─── SETTINGS ─────────────────────────────────────────────────────── */}
       {tab === "settings" && (
-        <div className="bg-[#0c1425] border border-[#1a2540] rounded-2xl p-5">
-          <h2 className="text-[10px] font-semibold uppercase tracking-widest text-slate-600 mb-5">
-            Project Settings
-          </h2>
-          <ProjectSettingsPanel
-            projectId={projectId}
-            initial={{
-              name: project.name,
-              buildCommand: project.buildCommand,
-              installCommand: project.installCommand,
-              startCommand: project.startCommand ?? "",
-              rootDirectory: project.rootDirectory,
-              branch: project.branch,
-              autoDeploy: project.autoDeploy,
-              trackedBranch: project.trackedBranch ?? "main",
-            }}
-            onSaved={refresh}
-          />
+        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100">
+            <h2 className="text-sm font-semibold text-gray-900">
+              Project Settings
+            </h2>
+          </div>
+          <div className="p-5">
+            <ProjectSettingsPanel
+              projectId={projectId}
+              initial={{
+                name: project.name,
+                buildCommand: project.buildCommand,
+                installCommand: project.installCommand,
+                startCommand: project.startCommand ?? "",
+                rootDirectory: project.rootDirectory,
+                branch: project.branch,
+                autoDeploy: project.autoDeploy,
+                trackedBranch: project.trackedBranch ?? "main",
+              }}
+              onSaved={refresh}
+            />
+          </div>
         </div>
       )}
 
-      {/* DANGER ZONE */}
+      {/* ─── DANGER ZONE ──────────────────────────────────────────────────── */}
       {tab === "danger" && (
         <ProjectDangerZone
           projectId={projectId}
@@ -753,12 +790,7 @@ export function ProjectDetailClient({
 
       <style
         dangerouslySetInnerHTML={{
-          __html: `
-        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
-        @keyframes toastIn { from{transform:translateY(10px);opacity:0} to{transform:translateY(0);opacity:1} }
-        .scrollbar-hide::-webkit-scrollbar{display:none}
-        .scrollbar-hide{-ms-overflow-style:none;scrollbar-width:none}
-      `,
+          __html: `.scrollbar-hide::-webkit-scrollbar{display:none}.scrollbar-hide{-ms-overflow-style:none;scrollbar-width:none}`,
         }}
       />
     </div>
