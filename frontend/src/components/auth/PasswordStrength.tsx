@@ -1,17 +1,16 @@
+// components/auth/PasswordStrength.tsx
 "use client";
 
 import { useMemo } from "react";
-import { cn } from "@/lib/utils";
 
 interface PasswordStrengthProps {
   password: string;
 }
 
 interface StrengthResult {
-  score: number; // 0–4
+  score: number;
   label: string;
   color: string;
-  textColor: string;
   bars: ("filled" | "empty")[];
 }
 
@@ -21,7 +20,6 @@ function evaluateStrength(password: string): StrengthResult {
       score: 0,
       label: "",
       color: "",
-      textColor: "",
       bars: ["empty", "empty", "empty", "empty"],
     };
   }
@@ -32,19 +30,19 @@ function evaluateStrength(password: string): StrengthResult {
   if (/[0-9]/.test(password)) score++;
   if (/[^A-Za-z0-9]/.test(password)) score++;
 
-  const configs: Record<number, Omit<StrengthResult, "score" | "bars">> = {
-    1: { label: "Weak", color: "#ef4444", textColor: "#f87171" },
-    2: { label: "Fair", color: "#f59e0b", textColor: "#fbbf24" },
-    3: { label: "Good", color: "#eab308", textColor: "#facc15" },
-    4: { label: "Strong", color: "#22c55e", textColor: "#4ade80" },
+  const configs: Record<number, { label: string; color: string }> = {
+    1: { label: "Weak", color: "#ef4444" },
+    2: { label: "Fair", color: "#f59e0b" },
+    3: { label: "Good", color: "#eab308" },
+    4: { label: "Strong", color: "#22c55e" },
   };
 
-  const { label, color, textColor } = configs[score] ?? configs[1];
+  const { label, color } = configs[score] ?? configs[1];
   const bars = Array.from({ length: 4 }, (_, i) =>
     i < score ? "filled" : "empty",
   ) as StrengthResult["bars"];
 
-  return { score, label, color, textColor, bars };
+  return { score, label, color, bars };
 }
 
 export function PasswordStrength({ password }: PasswordStrengthProps) {
@@ -53,30 +51,22 @@ export function PasswordStrength({ password }: PasswordStrengthProps) {
   if (!password) return null;
 
   return (
-    <div className="mt-2.5 space-y-2">
-      <div className="flex items-center gap-1.5">
-        {strength.bars.map((bar, i) => (
-          <div
-            key={i}
-            className="h-[3px] flex-1 rounded-full transition-all duration-500"
-            style={{
-              background:
-                bar === "filled" ? strength.color : "rgba(255,255,255,0.07)",
-              boxShadow:
-                bar === "filled" ? `0 0 6px ${strength.color}60` : "none",
-            }}
-          />
-        ))}
-        <span
-          className="text-[11px] font-medium ml-1 min-w-[40px] text-right transition-colors duration-300"
+    <div className="mt-2 flex items-center gap-1.5">
+      {strength.bars.map((bar, i) => (
+        <div
+          key={i}
+          className="h-1 flex-1 rounded-full transition-all duration-300"
           style={{
-            color: strength.textColor,
-            fontFamily: "'DM Sans', sans-serif",
+            backgroundColor: bar === "filled" ? strength.color : "#e5e7eb",
           }}
-        >
-          {strength.label}
-        </span>
-      </div>
+        />
+      ))}
+      <span
+        className="text-xs font-medium ml-1 min-w-[40px]"
+        style={{ color: strength.color }}
+      >
+        {strength.label}
+      </span>
     </div>
   );
 }

@@ -1,3 +1,4 @@
+// app/auth/reset-password/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -13,7 +14,6 @@ import {
   Loader2,
 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import {
   resetPasswordSchema,
   type ResetPasswordFormValues,
@@ -76,100 +76,53 @@ export default function ResetPasswordPage() {
 
   const isLoading = formState.status === "loading";
 
-  /* ── Success ── */
   if (formState.status === "success") {
     return (
-      <div className="space-y-7 text-center">
-        <div className="flex flex-col items-center">
-          <div
-            className="w-16 h-16 rounded-3xl flex items-center justify-center mb-5"
-            style={{
-              background: "rgba(34,197,94,0.1)",
-              border: "1px solid rgba(34,197,94,0.2)",
-              boxShadow: "0 0 40px rgba(34,197,94,0.1)",
-            }}
-          >
-            <CheckCircle2 className="w-8 h-8 text-green-400" />
+      <div className="space-y-6 text-center">
+        <div className="flex justify-center">
+          <div className="w-16 h-16 rounded-2xl bg-green-50 border border-green-200 flex items-center justify-center">
+            <CheckCircle2 className="w-8 h-8 text-green-600" />
           </div>
-          <h2
-            className="text-2xl font-bold text-white tracking-tight mb-2"
-            style={{
-              fontFamily: "'Sora', sans-serif",
-              letterSpacing: "-0.02em",
-            }}
-          >
-            Password updated
-          </h2>
-          <p
-            className="text-[#6b7280] text-sm"
-            style={{ fontFamily: "'DM Sans', sans-serif" }}
-          >
-            You&apos;ll be redirected to sign in shortly…
-          </p>
         </div>
-
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+            Password updated
+          </h1>
+          <p className="text-sm text-gray-500">Redirecting to sign in...</p>
+        </div>
         <Link
           href="/auth/login"
-          className="group relative flex items-center justify-center gap-2 w-full h-11 rounded-xl text-sm font-semibold text-white overflow-hidden transition-all duration-200"
-          style={{
-            background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
-            boxShadow:
-              "0 0 0 1px rgba(99,102,241,0.5), 0 4px 24px rgba(99,102,241,0.25)",
-            fontFamily: "'DM Sans', sans-serif",
-          }}
+          className="flex items-center justify-center gap-2 w-full h-11 rounded-xl text-sm font-semibold text-white bg-gray-900 hover:bg-gray-800 transition-colors"
         >
-          Sign in now <ArrowRight className="w-3.5 h-3.5" />
+          Sign in now
+          <ArrowRight className="w-4 h-4" />
         </Link>
       </div>
     );
   }
 
-  /* ── Form ── */
   return (
-    <div className="space-y-7">
+    <div className="space-y-6">
       <div>
-        <div
-          className="w-11 h-11 rounded-2xl flex items-center justify-center mb-5"
-          style={{
-            background: "rgba(99,102,241,0.12)",
-            border: "1px solid rgba(99,102,241,0.25)",
-          }}
-        >
-          <ShieldCheck className="w-5 h-5 text-indigo-400" />
+        <div className="w-11 h-11 rounded-xl bg-violet-50 border border-violet-200 flex items-center justify-center mb-4">
+          <ShieldCheck className="w-5 h-5 text-violet-600" />
         </div>
-        <h1
-          className="text-2xl font-bold text-white tracking-tight mb-1"
-          style={{ fontFamily: "'Sora', sans-serif", letterSpacing: "-0.02em" }}
-        >
+        <h1 className="text-2xl font-bold text-gray-900 mb-1">
           Set new password
         </h1>
-        <p
-          className="text-[#6b7280] text-sm"
-          style={{ fontFamily: "'DM Sans', sans-serif" }}
-        >
+        <p className="text-sm text-gray-500">
           Enter the code from your email, then choose a new password.
         </p>
       </div>
 
       {formState.status === "error" && (
-        <div
-          className="flex items-start gap-3 p-3.5 rounded-xl text-sm"
-          style={{
-            background: "rgba(239,68,68,0.08)",
-            border: "1px solid rgba(239,68,68,0.2)",
-            fontFamily: "'DM Sans', sans-serif",
-          }}
-        >
-          <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
-          <p className="text-red-400">{formState.message}</p>
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          {formState.message}
         </div>
       )}
 
-      <form
-        onSubmit={form.handleSubmit(onSubmit)}
-        className="space-y-4"
-        noValidate
-      >
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
         <AuthInputField
           control={form.control}
           name="email"
@@ -225,44 +178,21 @@ export default function ResetPasswordPage() {
         <button
           type="submit"
           disabled={isLoading}
-          className="group relative w-full h-11 rounded-xl text-sm font-semibold text-white overflow-hidden transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-          style={{
-            background: "linear-gradient(135deg, #6366f1, #8b5cf6)",
-            boxShadow: isLoading
-              ? "none"
-              : "0 0 0 1px rgba(99,102,241,0.5), 0 4px 24px rgba(99,102,241,0.25)",
-            fontFamily: "'DM Sans', sans-serif",
-          }}
+          className="w-full h-11 bg-gray-900 hover:bg-gray-800 text-white rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 disabled:opacity-50"
         >
-          <div
-            className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity"
-            style={{
-              background:
-                "linear-gradient(105deg, transparent 30%, rgba(255,255,255,0.1) 50%, transparent 70%)",
-            }}
-          />
-          <span className="relative flex items-center justify-center gap-2">
-            {isLoading ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" /> Updating password…
-              </>
-            ) : (
-              <>
-                Update password{" "}
-                <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
-              </>
-            )}
-          </span>
+          {isLoading ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <ArrowRight className="w-4 h-4" />
+          )}
+          {isLoading ? "Updating..." : "Update password"}
         </button>
       </form>
 
-      <p
-        className="text-center text-sm text-[#4b5563]"
-        style={{ fontFamily: "'DM Sans', sans-serif" }}
-      >
+      <p className="text-center text-sm text-gray-500">
         <Link
           href="/auth/forgot-password"
-          className="text-indigo-400 hover:text-indigo-300 transition-colors"
+          className="text-violet-600 hover:text-violet-700 font-medium"
         >
           Request a new code
         </Link>

@@ -1,23 +1,18 @@
+// components/auth/EyeToggle.tsx
 "use client";
-
-import { cn } from "@/lib/utils";
 
 interface EyeToggleProps {
   show: boolean;
   onToggle: () => void;
-  className?: string;
 }
 
-export function EyeToggle({ show, onToggle, className }: EyeToggleProps) {
+export function EyeToggle({ show, onToggle }: EyeToggleProps) {
   return (
     <button
       type="button"
       onClick={onToggle}
       tabIndex={-1}
-      className={cn(
-        "text-gray-500 hover:text-gray-300 transition-colors focus:outline-none",
-        className,
-      )}
+      className="text-gray-400 hover:text-gray-600 transition-colors"
       aria-label={show ? "Hide password" : "Show password"}
     >
       {show ? (

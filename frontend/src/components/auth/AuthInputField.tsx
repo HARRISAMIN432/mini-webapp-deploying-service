@@ -1,15 +1,9 @@
+// components/auth/AuthInputField.tsx
 "use client";
 
 import * as React from "react";
 import { Controller, Control, FieldPath, FieldValues } from "react-hook-form";
 import { cn } from "@/lib/utils";
-import {
-  Field,
-  FieldError,
-  FieldLabel,
-  FieldDescription,
-} from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 
 interface AuthInputFieldProps<T extends FieldValues> {
   control: Control<T>;
@@ -22,7 +16,6 @@ interface AuthInputFieldProps<T extends FieldValues> {
   maxLength?: number;
   rightElement?: React.ReactNode;
   className?: string;
-  inputClassName?: string;
   description?: string;
 }
 
@@ -37,7 +30,6 @@ export function AuthInputField<T extends FieldValues>({
   maxLength,
   rightElement,
   className,
-  inputClassName,
   description,
 }: AuthInputFieldProps<T>) {
   const inputId = `auth-${name}`;
@@ -47,113 +39,61 @@ export function AuthInputField<T extends FieldValues>({
       name={name}
       control={control}
       render={({ field, fieldState }) => (
-        <Field
-          data-invalid={fieldState.invalid}
-          className={cn("space-y-1.5", className)}
-        >
-          <FieldLabel
+        <div className={cn("space-y-1.5", className)}>
+          <label
             htmlFor={inputId}
-            className="text-[#9ca3af] text-xs font-medium tracking-wide uppercase"
-            style={{
-              fontFamily: "'DM Sans', sans-serif",
-              letterSpacing: "0.06em",
-            }}
+            className="block text-xs font-medium text-gray-700"
           >
             {label}
-          </FieldLabel>
+          </label>
 
-          {rightElement ? (
-            <div className="relative group">
-              <Input
-                {...field}
-                id={inputId}
-                type={type}
-                placeholder={placeholder}
-                autoComplete={autoComplete}
-                inputMode={inputMode}
-                maxLength={maxLength}
-                aria-invalid={fieldState.invalid}
-                className={cn(
-                  "h-11 w-full rounded-xl text-sm text-white placeholder:text-[#374151] pr-12",
-                  "transition-all duration-200 outline-none",
-                  "bg-[#0d0f14] border border-white/[0.08]",
-                  "hover:border-white/[0.14] hover:bg-[#0f1116]",
-                  "focus:border-indigo-500/60 focus:bg-[#0f1116]",
-                  "focus:ring-2 focus:ring-indigo-500/15 focus:ring-offset-0",
-                  "focus-visible:ring-2 focus-visible:ring-indigo-500/15 focus-visible:ring-offset-0",
-                  fieldState.error &&
-                    "border-red-500/40 focus:border-red-500/60 focus:ring-red-500/15 focus-visible:ring-red-500/15",
-                  inputClassName,
-                )}
-                style={{ fontFamily: "'DM Sans', sans-serif" }}
-              />
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[#4b5563]">
+          <div className="relative">
+            <input
+              {...field}
+              id={inputId}
+              type={type}
+              placeholder={placeholder}
+              autoComplete={autoComplete}
+              inputMode={inputMode}
+              maxLength={maxLength}
+              aria-invalid={fieldState.invalid}
+              className={cn(
+                "block w-full h-11 rounded-xl px-3.5 text-sm text-gray-900 placeholder:text-gray-400",
+                "bg-white border border-gray-200",
+                "focus:outline-none focus:border-violet-500 focus:ring-2 focus:ring-violet-500/10",
+                "transition-all duration-200",
+                fieldState.error &&
+                  "border-red-300 focus:border-red-500 focus:ring-red-500/10",
+                rightElement && "pr-10",
+              )}
+            />
+            {rightElement && (
+              <div className="absolute right-3 top-1/2 -translate-y-1/2">
                 {rightElement}
               </div>
-              {/* Focus glow line */}
-              {!fieldState.error && (
-                <div
-                  className="absolute bottom-0 left-3 right-3 h-px rounded-full opacity-0 group-focus-within:opacity-100 transition-opacity duration-200"
-                  style={{
-                    background:
-                      "linear-gradient(90deg, transparent, rgba(99,102,241,0.6), transparent)",
-                  }}
-                />
-              )}
-            </div>
-          ) : (
-            <div className="relative group">
-              <Input
-                {...field}
-                id={inputId}
-                type={type}
-                placeholder={placeholder}
-                autoComplete={autoComplete}
-                inputMode={inputMode}
-                maxLength={maxLength}
-                aria-invalid={fieldState.invalid}
-                className={cn(
-                  "h-11 w-full rounded-xl text-sm text-white placeholder:text-[#374151]",
-                  "transition-all duration-200 outline-none",
-                  "bg-[#0d0f14] border border-white/[0.08]",
-                  "hover:border-white/[0.14] hover:bg-[#0f1116]",
-                  "focus:border-indigo-500/60 focus:bg-[#0f1116]",
-                  "focus:ring-2 focus:ring-indigo-500/15 focus:ring-offset-0",
-                  "focus-visible:ring-2 focus-visible:ring-indigo-500/15 focus-visible:ring-offset-0",
-                  fieldState.error &&
-                    "border-red-500/40 focus:border-red-500/60 focus:ring-red-500/15 focus-visible:ring-red-500/15",
-                  inputClassName,
-                )}
-                style={{ fontFamily: "'DM Sans', sans-serif" }}
-              />
-              {!fieldState.error && (
-                <div
-                  className="absolute bottom-0 left-3 right-3 h-px rounded-full opacity-0 group-focus-within:opacity-100 transition-opacity duration-200"
-                  style={{
-                    background:
-                      "linear-gradient(90deg, transparent, rgba(99,102,241,0.6), transparent)",
-                  }}
-                />
-              )}
-            </div>
-          )}
+            )}
+          </div>
 
           {description && (
-            <FieldDescription
-              className="text-[#4b5563] text-xs"
-              style={{ fontFamily: "'DM Sans', sans-serif" }}
-            >
-              {description}
-            </FieldDescription>
+            <p className="text-xs text-gray-500">{description}</p>
           )}
 
           {fieldState.invalid && fieldState.error && (
-            <FieldError
-              errors={[fieldState.error]}
-              className="text-red-400 text-xs flex items-center gap-1.5 mt-1"
-            />
+            <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
+              <svg
+                className="w-3 h-3 flex-shrink-0"
+                viewBox="0 0 12 12"
+                fill="currentColor"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M6 1a5 5 0 100 10A5 5 0 006 1zM5.25 3.5a.75.75 0 011.5 0v2.5a.75.75 0 01-1.5 0v-2.5zm.75 5.75a.75.75 0 100-1.5.75.75 0 000 1.5z"
+                />
+              </svg>
+              {fieldState.error.message}
+            </p>
           )}
-        </Field>
+        </div>
       )}
     />
   );
