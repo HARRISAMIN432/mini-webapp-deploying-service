@@ -172,12 +172,56 @@ async function detectDeadContainers(): Promise<void> {
   }
 }
 
+// Add this function after detectDeadContainers()
+async function detectRevivedContainers(): Promise<void> {
+  // Find deployments marked as "stopped", "failed", or "unhealthy" but whose containers are actually running
+  const inactive = await Deployment.find({
+    status: { $in: ["stopped", "failed"] },
+    containerId: { $ne: null },
+  })
+    .select("_id containerId status healthStatus")
+    .lean();
+
+  for (const deployment of inactive) {
+    if (!deployment.containerId) continue;
+
+    const containerStatus = getContainerStatus(deployment.containerId);
+
+    // If container is running but DB says stopped/failed → update status
+    if (containerStatus === "running") {
+      logger.info(
+        `[health] Deployment ${deployment._id} container is running but DB status is ${deployment.status} — reviving`,
+      );
+
+      await Deployment.findByIdAndUpdate(deployment._id, {
+        $set: {
+          status: "running",
+          healthStatus: "healthy",
+          errorMessage: null,
+          completedAt: null,
+          consecutiveFailures: 0,
+        },
+      });
+
+      // Also update project's activeDeploymentId if not set
+      const project = await Project.findOne({ activeDeploymentId: deployment._id });
+      if (!project) {
+        await Project.findOneAndUpdate(
+          { _id: deployment.projectId },
+          { $set: { activeDeploymentId: deployment._id } }
+        );
+      }
+    }
+  }
+}
+
 // ─── Runner ───────────────────────────────────────────────────────────────────
 
 async function runHealthChecks(): Promise<void> {
   try {
-    // First, detect any containers that died unexpectedly
     await detectDeadContainers();
+    
+    await detectRevivedContainers();  
 
     const running = await Deployment.find({ status: "running" })
       .select("_id containerId port consecutiveFailures projectId")

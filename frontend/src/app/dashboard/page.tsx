@@ -42,6 +42,18 @@ function StatusBadge({ status }: { status: string }) {
       text: "text-amber-700",
       label: "Building",
     },
+    building: {
+      dot: "bg-amber-400",
+      bg: "bg-amber-50",
+      text: "text-amber-700",
+      label: "Building",
+    },
+    starting: {
+      dot: "bg-amber-400",
+      bg: "bg-amber-50",
+      text: "text-amber-700",
+      label: "Building",
+    },
     stopped: {
       dot: "bg-gray-400",
       bg: "bg-gray-100",
@@ -66,6 +78,37 @@ function StatusBadge({ status }: { status: string }) {
       {s.label}
     </span>
   );
+}
+
+// ─── Helper: Extract project name from deployment ─────────────────────────────
+
+function getProjectName(dep: Deployment): string {
+  // When projectId is populated, it's an object with name
+  if (typeof dep.projectId === "object" && dep.projectId !== null) {
+    return dep.projectId.name || "Unknown";
+  }
+  // When projectId is a string (ObjectId)
+  return "Unknown";
+}
+
+function getProjectId(dep: Deployment): string {
+  if (typeof dep.projectId === "object" && dep.projectId !== null) {
+    return (dep.projectId as any)._id || (dep.projectId as any).id || "";
+  }
+  return dep.projectId || "";
+}
+
+// ─── Relative time helper ─────────────────────────────────────────────────────
+
+function relativeTime(dateStr?: string): string {
+  if (!dateStr) return "—";
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} hr ago`;
+  return `${Math.floor(hrs / 24)} days ago`;
 }
 
 // ─── Stat card ────────────────────────────────────────────────────────────────
@@ -96,19 +139,6 @@ function StatCard({
   );
 }
 
-// ─── Relative time helper ─────────────────────────────────────────────────────
-
-function relativeTime(dateStr?: string): string {
-  if (!dateStr) return "—";
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "Just now";
-  if (mins < 60) return `${mins} min ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs} hr ago`;
-  return `${Math.floor(hrs / 24)} days ago`;
-}
-
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
@@ -132,21 +162,19 @@ export default function DashboardPage() {
       {
         label: "Total deployments",
         value: String(deployments.length || 0),
-        sub: "+12 this week",
+        sub: `${projects.length} projects`,
         subPositive: true,
       },
       {
         label: "Success rate",
         value: deployments.length
-          ? `${
-              Math.round(
-                (deployments.filter((d) => d.status === "running").length /
-                  deployments.length) *
-                  1000,
-              ) / 10
-            }%`
+          ? `${Math.round(
+              (deployments.filter((d) => d.status === "running").length /
+                deployments.length) *
+                100,
+            )}%`
           : "—",
-        sub: "+0.4% vs last week",
+        sub: "Live deployments",
         subPositive: true,
       },
       {
@@ -157,10 +185,14 @@ export default function DashboardPage() {
         label: "Queued Builds",
         value: String(
           deployments.filter(
-            (d) => d.status === "queued" || d.status === "cloning",
+            (d) =>
+              d.status === "queued" ||
+              d.status === "cloning" ||
+              d.status === "building" ||
+              d.status === "starting",
           ).length,
         ),
-        sub: "Running now",
+        sub: "In progress",
         subPositive: true,
       },
     ],
@@ -171,8 +203,8 @@ export default function DashboardPage() {
     () =>
       [...deployments]
         .sort((a, b) => {
-          const da = new Date((a as any).createdAt || 0).getTime();
-          const db = new Date((b as any).createdAt || 0).getTime();
+          const da = new Date(a.createdAt || 0).getTime();
+          const db = new Date(b.createdAt || 0).getTime();
           return db - da;
         })
         .slice(0, 8),
@@ -269,31 +301,15 @@ export default function DashboardPage() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {recentDeployments.map((dep) => {
-                const project = projects.find((p) => {
-                  const pid = (p as any)._id?.toString() || (p as any).id;
-                  const dpid =
-                    (dep as any).projectId?.toString() ||
-                    (dep as any).project?.toString();
-                  return pid === dpid;
-                });
-                const depId =
-                  (dep as any)._id?.toString() || (dep as any).id || "";
-                const branch =
-                  (dep as any).branch || (dep as any).gitBranch || "main";
-                const commit =
-                  (dep as any).commitHash?.slice(0, 7) ||
-                  (dep as any).commit?.slice(0, 7) ||
-                  "";
-                const projectName =
-                  (project as any)?.name ||
-                  (dep as any).projectName ||
-                  "Unknown";
+                const depId = dep._id || "";
+                const projectName = getProjectName(dep);
+                const projectId = getProjectId(dep);
+                const branch = dep.branch || "main";
+                const commit = dep.commitHash?.slice(0, 7) || "";
 
                 // Calculate duration
-                const startedAt =
-                  (dep as any).startedAt || (dep as any).createdAt;
-                const finishedAt =
-                  (dep as any).finishedAt || (dep as any).updatedAt;
+                const startedAt = dep.startedAt || dep.createdAt;
+                const finishedAt = dep.completedAt || dep.updatedAt;
                 let duration = "—";
                 if (startedAt && finishedAt) {
                   const secs = Math.floor(
@@ -314,9 +330,12 @@ export default function DashboardPage() {
                     className="hover:bg-gray-50/60 transition-colors"
                   >
                     <td className="px-6 py-3.5">
-                      <p className="text-sm font-medium text-gray-900">
+                      <Link
+                        href={`/dashboard/projects/${projectId}`}
+                        className="text-sm font-medium text-gray-900 hover:text-violet-600 transition-colors"
+                      >
                         {projectName}
-                      </p>
+                      </Link>
                       <p className="text-xs text-gray-400 mt-0.5">
                         {branch}
                         {commit ? ` · ${commit}` : ""}
@@ -329,7 +348,7 @@ export default function DashboardPage() {
                       {duration}
                     </td>
                     <td className="px-6 py-3.5 text-sm text-gray-500">
-                      {relativeTime((dep as any).createdAt)}
+                      {relativeTime(dep.createdAt)}
                     </td>
                     <td className="px-6 py-3.5 text-right">
                       <Link
