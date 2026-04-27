@@ -1,29 +1,28 @@
+// app/page.tsx
 import type { Metadata } from "next";
 import { Navbar } from "@/components/landing/Navbar";
 import { HeroSection } from "@/components/landing/HeroSection";
-import { LogoTicker } from "@/components/landing/LogoTicker";
+import { TrustedBy } from "@/components/landing/TrustedBy";
 import { FeaturesSection } from "@/components/landing/FeaturesSection";
 import { HowItWorksSection } from "@/components/landing/HowitWorksSection";
-import {
-  StatsSection,
-  PricingSection,
-  TestimonialsSection,
-  CtaSection,
-  Footer,
-} from "@/components/landing/Sections";
+import { StatsSection } from "@/components/landing/StatsSection";
+import { PricingSection } from "@/components/landing/PricingSection";
+import { TestimonialsSection } from "@/components/landing/TestimonialsSection";
+import { CtaSection } from "@/components/landing/CTASection";
+import { Footer } from "@/components/landing/Footer";
 
 export const metadata: Metadata = {
-  title: "ShipStack — Deploy Once. Run Everywhere.",
+  title: "ShipStack — Deploy globally in seconds",
   description:
-    "Push your repo. Get a live, globally distributed URL in under 30 seconds. No infrastructure knowledge required.",
+    "Push your code, we handle the rest. Get your app deployed globally in seconds with automatic SSL, CDN, and continuous deployment.",
 };
 
 export default function LandingPage() {
   return (
-    <main style={{ background: "#050608", overflowX: "hidden" }}>
+    <main className="bg-white">
       <Navbar />
       <HeroSection />
-      <LogoTicker />
+      <TrustedBy />
       <FeaturesSection />
       <HowItWorksSection />
       <StatsSection />
