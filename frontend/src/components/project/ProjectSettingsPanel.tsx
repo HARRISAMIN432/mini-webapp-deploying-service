@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { projectApi } from "@/lib/api";
 
 interface ProjectSettingsPanelProps {
@@ -28,9 +28,13 @@ export function ProjectSettingsPanel({
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const set =
-    (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
+  // Use useCallback to memoize the handler
+  const handleChange = useCallback(
+    (key: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => {
       setForm((f) => ({ ...f, [key]: e.target.value }));
+    },
+    [], // No dependencies needed since setForm is stable
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,28 +51,6 @@ export function ProjectSettingsPanel({
       setSaving(false);
     }
   };
-
-  const Field = ({
-    label,
-    fieldKey,
-    placeholder,
-    mono = true,
-  }: {
-    label: string;
-    fieldKey: keyof typeof form;
-    placeholder?: string;
-    mono?: boolean;
-  }) => (
-    <label className="flex flex-col gap-1.5">
-      <span className="text-xs font-medium text-gray-500">{label}</span>
-      <input
-        value={form[fieldKey] as string}
-        onChange={set(fieldKey as any)}
-        placeholder={placeholder}
-        className={`w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm ${mono ? "font-mono" : ""} text-gray-900 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all placeholder:text-gray-300`}
-      />
-    </label>
-  );
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
@@ -94,39 +76,66 @@ export function ProjectSettingsPanel({
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Field
-          label="Project name"
-          fieldKey="name"
-          placeholder="my-app"
-          mono={false}
-        />
-        <Field label="Branch" fieldKey="branch" placeholder="main" />
+        <label className="flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-gray-500">Project name</span>
+          <input
+            value={form.name}
+            onChange={handleChange("name")}
+            placeholder="my-app"
+            className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm text-gray-900 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all placeholder:text-gray-300"
+          />
+        </label>
+        <label className="flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-gray-500">Branch</span>
+          <input
+            value={form.branch}
+            onChange={handleChange("branch")}
+            placeholder="main"
+            className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm font-mono text-gray-900 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all placeholder:text-gray-300"
+          />
+        </label>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Field
-          label="Install command"
-          fieldKey="installCommand"
-          placeholder="npm install"
-        />
-        <Field
-          label="Build command"
-          fieldKey="buildCommand"
-          placeholder="npm run build"
-        />
+        <label className="flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-gray-500">Install command</span>
+          <input
+            value={form.installCommand}
+            onChange={handleChange("installCommand")}
+            placeholder="npm install"
+            className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm font-mono text-gray-900 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all placeholder:text-gray-300"
+          />
+        </label>
+        <label className="flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-gray-500">Build command</span>
+          <input
+            value={form.buildCommand}
+            onChange={handleChange("buildCommand")}
+            placeholder="npm run build"
+            className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm font-mono text-gray-900 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all placeholder:text-gray-300"
+          />
+        </label>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <Field
-          label="Start command"
-          fieldKey="startCommand"
-          placeholder="npm start (optional)"
-        />
-        <Field
-          label="Root directory"
-          fieldKey="rootDirectory"
-          placeholder="./"
-        />
+        <label className="flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-gray-500">Start command</span>
+          <input
+            value={form.startCommand}
+            onChange={handleChange("startCommand")}
+            placeholder="npm start (optional)"
+            className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm font-mono text-gray-900 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all placeholder:text-gray-300"
+          />
+        </label>
+        <label className="flex flex-col gap-1.5">
+          <span className="text-xs font-medium text-gray-500">Root directory</span>
+          <input
+            value={form.rootDirectory}
+            onChange={handleChange("rootDirectory")}
+            placeholder="./"
+            className="w-full bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm font-mono text-gray-900 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all placeholder:text-gray-300"
+          />
+        </label>
       </div>
 
       {/* Auto-deploy toggle */}
@@ -157,7 +166,7 @@ export function ProjectSettingsPanel({
             </span>
             <input
               value={form.trackedBranch}
-              onChange={set("trackedBranch")}
+              onChange={handleChange("trackedBranch")}
               placeholder="main"
               className="bg-white border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono text-gray-900 outline-none focus:border-violet-300 focus:ring-2 focus:ring-violet-100 transition-all"
             />
@@ -192,7 +201,7 @@ export function ProjectSettingsPanel({
           disabled={saving}
           className="px-5 py-2.5 text-sm font-semibold rounded-xl bg-gray-900 hover:bg-gray-700 text-white transition-all disabled:opacity-60"
         >
-          {saving ? "Saving…" : "Save settings"}
+          {saving ? "Saving..." : "Save settings"}
         </button>
       </div>
     </form>

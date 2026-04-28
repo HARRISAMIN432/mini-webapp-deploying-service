@@ -228,7 +228,6 @@ export const resetPassword = async (
   await revokeAllUserSessions(user._id.toString());
 };
 
-// ─── OAuth — Initiate ─────────────────────────────────────────────────────────
 export const getOAuthRedirectUrl = async (
   provider: "google" | "github",
   redirectTo = "/",
@@ -239,7 +238,6 @@ export const getOAuthRedirectUrl = async (
     : await buildGithubAuthUrl(state);
 };
 
-// ─── OAuth — Callback ────────────────────────────────────────────────────────
 export const handleOAuthCallback = async (
   provider: "google" | "github",
   code: string,
@@ -262,7 +260,45 @@ export const handleOAuthCallback = async (
       ? await exchangeGoogleCode(code)
       : await exchangeGithubCode(code, stored.codeVerifier);
 
+  // Phase 6: Persist GitHub access token for repo API calls
+  if (provider === "github") {
+    try {
+      const { saveGithubToken } = await import("./github.service");
+      // Get the user first (upsertOAuthUser will be called next, but we need userId)
+      const existingAccount = await OAuthAccount.findByProvider(
+        profile.provider,
+        profile.providerId,
+      );
+
+      if (existingAccount) {
+        await saveGithubToken(existingAccount.userId.toString(), accessToken);
+      } else {
+        // User will be created in upsertOAuthUser, so we save after
+        // Store temporarily to save after upsert
+        (profile as any)._githubAccessToken = accessToken;
+      }
+    } catch (err) {
+      // Non-fatal — log and continue
+      console.warn("Failed to save GitHub token", { error: String(err) });
+    }
+  }
+
   const result = await upsertOAuthUser(profile, accessToken, refreshToken);
+
+  // Phase 6: If this is a new GitHub user, save the token now
+  if (provider === "github" && (profile as any)._githubAccessToken) {
+    try {
+      const { saveGithubToken } = await import("./github.service");
+      // Find the user by email to get the new userId
+      const user = await User.findByEmail(profile.email);
+      if (user) {
+        await saveGithubToken(user._id.toString(), (profile as any)._githubAccessToken);
+      }
+    } catch (err) {
+      console.warn("Failed to save GitHub token for new user", { error: String(err) });
+    }
+  }
+
   return { ...result, redirectTo: stored.redirectTo };
 };
 

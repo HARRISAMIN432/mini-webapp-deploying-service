@@ -57,16 +57,15 @@ const teardownDeployment = async (deployment: {
   if (deployment.containerId) {
     try {
       await stopAndRemoveContainer(deployment.containerId);
-    } catch {}
+    } catch { }
   }
   if (deployment.subdomain) {
     try {
       await unregisterRoute(deployment.subdomain);
-    } catch {}
+    } catch { }
   }
 };
 
-// ─── Project CRUD ─────────────────────────────────────────────────────────────
 
 export const listProjects = async (ownerId: string) =>
   Project.find({ ownerId: new Types.ObjectId(ownerId) }).sort({
@@ -75,16 +74,34 @@ export const listProjects = async (ownerId: string) =>
 
 export const createProject = async (
   ownerId: string,
-  input: CreateProjectInput,
+  input: CreateProjectInput & {
+    repoSource?: "github" | "manual";
+    repoFullName?: string;
+  },
 ) => {
   const safeInput = sanitizeProjectInput(input);
+
+  if (safeInput.repoSource === "github" && safeInput.repoFullName) {
+    const { validateRepoOwnership } = await import("./github.service");
+    const repo = await validateRepoOwnership(ownerId, safeInput.repoFullName);
+    safeInput.repoUrl = repo.html_url;
+  }
+
   const existing = await Project.findOne({
     ownerId: new Types.ObjectId(ownerId),
     name: safeInput.name,
   });
   if (existing) throw conflict("A project with this name already exists");
 
-  return Project.create({ ...safeInput, ownerId: new Types.ObjectId(ownerId) });
+  const { repoSource: _rs, repoFullName: _rfn, ...projectData } = safeInput as typeof safeInput & {
+    repoSource?: string;
+    repoFullName?: string;
+  };
+
+  return Project.create({
+    ...projectData,
+    ownerId: new Types.ObjectId(ownerId),
+  });
 };
 
 export const getProject = async (ownerId: string, projectId: string) =>
@@ -485,11 +502,11 @@ export const getProjectDomains = async (ownerId: string, projectId: string) => {
   return {
     defaultDomain: entry
       ? {
-          subdomain,
-          url: `http://${subdomain}.localhost${process.env.NGINX_PUBLIC_PORT && process.env.NGINX_PUBLIC_PORT !== "80" ? `:${process.env.NGINX_PUBLIC_PORT}` : ""}`,
-          isPrimary: true,
-          port: entry.hostPort,
-        }
+        subdomain,
+        url: `http://${subdomain}.localhost${process.env.NGINX_PUBLIC_PORT && process.env.NGINX_PUBLIC_PORT !== "80" ? `:${process.env.NGINX_PUBLIC_PORT}` : ""}`,
+        isPrimary: true,
+        port: entry.hostPort,
+      }
       : null,
   };
 };

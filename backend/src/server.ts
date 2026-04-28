@@ -15,6 +15,7 @@ import authRoutes from "./routes/auth.route";
 import projectRoutes from "./routes/project.route";
 import deploymentRoutes from "./routes/deployment.route";
 import webhookRoutes from "./routes/webhook.route"; // Phase 5
+import githubRoutes from "./routes/github.route"; // Phase 6
 import { bootstrapNginx } from "./services/nginx.service";
 import { startHealthMonitor } from "./services/health.service"; // Phase 5
 
@@ -58,6 +59,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/projects", projectRoutes);
 app.use("/api/projects/deployments", deploymentRoutes);
 app.use("/api/webhooks", webhookRoutes); // Phase 5
+app.use("/api/github", githubRoutes); // Phase 6
 
 app.use(errorHandler);
 
@@ -74,7 +76,6 @@ const start = async (): Promise<void> => {
     });
   }
 
-  // Phase 5: start background health monitor
   startHealthMonitor();
 
   app.listen(env.PORT, () => {

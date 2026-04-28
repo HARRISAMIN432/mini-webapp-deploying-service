@@ -27,6 +27,10 @@ export const createProjectSchema = z.object({
       }),
     )
     .default([]),
+
+  // Phase 6 additions
+  repoSource: z.enum(["github", "manual"]).default("manual"),
+  repoFullName: z.string().max(300).optional(),
 });
 
 export const updateProjectSchema = z.object({
