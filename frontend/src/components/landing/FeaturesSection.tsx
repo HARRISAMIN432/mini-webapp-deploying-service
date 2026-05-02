@@ -15,12 +15,7 @@ const FEATURES = [
     title: "Instant auto-detection",
     desc: "Push your code and ShipStack automatically detects your framework — Next.js, Remix, SvelteKit, or Docker — and configures the build pipeline. Zero config required.",
   },
-  {
-    icon: <Globe className="w-5 h-5" />,
-    color: "bg-indigo-50 text-indigo-600",
-    title: "Global edge CDN",
-    desc: "Deploy to 40+ edge regions simultaneously. Your users get served from the nearest node, cutting latency to under 10ms for 95% of global traffic.",
-  },
+
   {
     icon: <GitBranch className="w-5 h-5" />,
     color: "bg-violet-50 text-violet-600",

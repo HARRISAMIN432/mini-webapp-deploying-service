@@ -47,16 +47,11 @@ export function AuthLayoutClient({ children }: AuthLayoutClientProps) {
                 confidence
               </span>
             </h1>
-            <p className="text-gray-400 text-base leading-relaxed">
-              Push your code, we handle the rest. Get your app deployed globally
-              in seconds with automatic SSL, CDN, and continuous deployment.
-            </p>
 
             {/* Feature list */}
             <div className="mt-10 space-y-4">
               {[
                 { label: "Auto-detection", desc: "Framework-aware builds" },
-                { label: "Global CDN", desc: "40+ edge locations" },
                 { label: "Instant rollbacks", desc: "One-click revert" },
               ].map((feature) => (
                 <div key={feature.label} className="flex items-center gap-3">

@@ -14,7 +14,7 @@ import { Footer } from "@/components/landing/Footer";
 export const metadata: Metadata = {
   title: "ShipStack — Deploy globally in seconds",
   description:
-    "Push your code, we handle the rest. Get your app deployed globally in seconds with automatic SSL, CDN, and continuous deployment.",
+    "Push your code, we handle the rest. Get your app deployed globally in seconds",
 };
 
 export default function LandingPage() {
