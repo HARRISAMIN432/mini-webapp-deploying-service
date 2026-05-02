@@ -521,18 +521,24 @@ export default function DeploymentDetailPage() {
       </div>
 
       {/* CSS Animations */}
-      <style jsx>{`
-        @keyframes fadeInUp {
-          from {
-            opacity: 0;
-            transform: translateY(4px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
+      <div
+        dangerouslySetInnerHTML={{
+          __html: `
+    <style>
+      @keyframes fadeInUp {
+        from {
+          opacity: 0;
+          transform: translateY(4px);
         }
-      `}</style>
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+    </style>
+  `,
+        }}
+      />
     </div>
   );
 }
